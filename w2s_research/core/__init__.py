@@ -5,13 +5,21 @@ Self-contained, no external dependencies.
 
 from .decode_config import DecodeConfig
 
+__all__ = ["DecodeConfig"]
+
+# The training/inference modules below pull in heavy optional dependencies
+# (torch, transformers, vllm, datasets). They are imported best-effort so the
+# lightweight decoding path works on a CPU-only environment. Only a genuinely
+# missing optional package (ModuleNotFoundError) is tolerated; any other
+# ImportError (a real bug in the module) is allowed to propagate.
 try:
     from .config import (
         RunConfig,
         create_run_arg_parser,
         BASELINE_EPOCHS,
     )
-except ImportError:
+    __all__ += ["RunConfig", "create_run_arg_parser", "BASELINE_EPOCHS"]
+except ModuleNotFoundError:
     pass
 
 try:
@@ -20,7 +28,8 @@ try:
         format_classification_as_causal,
         detect_aar_mode,
     )
-except ImportError:
+    __all__ += ["load_dataset", "format_classification_as_causal", "detect_aar_mode"]
+except ModuleNotFoundError:
     pass
 
 try:
@@ -31,7 +40,14 @@ try:
         normalize_model_name_for_path,
         is_base_model,
     )
-except ImportError:
+    __all__ += [
+        "train_model",
+        "find_latest_checkpoint",
+        "load_model_from_checkpoint",
+        "normalize_model_name_for_path",
+        "is_base_model",
+    ]
+except ModuleNotFoundError:
     pass
 
 try:
@@ -42,47 +58,28 @@ try:
         save_predictions,
         compute_metrics_from_predictions,
     )
-except ImportError:
+    __all__ += [
+        "evaluate_model",
+        "print_evaluation_results",
+        "generate_predictions",
+        "save_predictions",
+        "compute_metrics_from_predictions",
+    ]
+except ModuleNotFoundError:
     pass
 
 try:
     from .vllm_inference import (
         predict_batch_labels,
     )
-except ImportError:
+    __all__ += ["predict_batch_labels"]
+except ModuleNotFoundError:
     pass
 
 try:
     from .seed_utils import (
         set_seed,
     )
-except ImportError:
+    __all__ += ["set_seed"]
+except ModuleNotFoundError:
     pass
-
-__all__ = [
-    # Decoding
-    "DecodeConfig",
-    # Config
-    "RunConfig",
-    "create_run_arg_parser",
-    "BASELINE_EPOCHS",
-    # Data
-    "load_dataset",
-    "format_classification_as_causal",
-    "detect_aar_mode",
-    # Training
-    "train_model",
-    "find_latest_checkpoint",
-    "load_model_from_checkpoint",
-    "normalize_model_name_for_path",
-    "is_base_model",
-    "evaluate_model",
-    "print_evaluation_results",
-    "generate_predictions",
-    "save_predictions",
-    "compute_metrics_from_predictions",
-    # Inference
-    "predict_batch_labels",
-    # Seed utilities
-    "set_seed",
-]
