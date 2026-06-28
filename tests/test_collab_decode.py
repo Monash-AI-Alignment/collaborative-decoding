@@ -84,3 +84,22 @@ def test_aggregate_weak_fraction_is_char_weighted():
     r2 = CollaborativeDecoder(weak2, strong2, AlwaysContinue(), DecodeConfig()).run_example("i")
     # all-weak in both -> aggregate fraction 1.0
     assert aggregate_weak_fraction([r1, r2]) == 1.0
+
+
+def test_aggregate_distinguishes_char_weighting_from_averaging():
+    # r1: 6 weak chars, 0 strong chars -> per-result fraction 1.0
+    r1 = CollaborativeDecoder(
+        FakeWeakModel(steps=[W("aaaaaa"), W("", eos=True)]),
+        FakeStrongModel(outputs=[]),
+        AlwaysContinue(),
+        DecodeConfig(),
+    ).run_example("i")
+    # r2: 0 weak chars, 2 strong chars -> per-result fraction 0.0
+    r2 = CollaborativeDecoder(
+        FakeWeakModel(steps=[W("zzz")]),
+        FakeStrongModel(outputs=[StrongOutput(text="xx", finished=True)]),
+        AlwaysDefer(),
+        DecodeConfig(),
+    ).run_example("i")
+    # char-weighted aggregate = 6/(6+2) = 0.75, NOT the naive average (1.0+0.0)/2 = 0.5
+    assert aggregate_weak_fraction([r1, r2]) == 0.75
