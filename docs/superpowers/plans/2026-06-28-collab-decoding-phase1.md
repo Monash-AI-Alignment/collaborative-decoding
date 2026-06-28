@@ -1583,17 +1583,27 @@ git commit -m "feat(decode): add decode CLI with injectable adapters (CPU-testab
 
 - [ ] **Step 7: GPU end-to-end (Gate 1a + 1b) — run on a GPU node**
 
+Requires the GPU venv (torch + vLLM, created with `uv sync` on a GPU node); `<gpu-python>` below is that venv's python.
+
 ```bash
 export HF_HOME=/scratch2/ml23/smur0075/hf_cache
 export HF_TOKEN=...
-# Baselines define the utility band:
-.venv/bin/python -m w2s_research.decode_cli --idea weak_only   --benchmark gsm8k --eval-size 100 --out /scratch2/ml23/smur0075/decode_weak.json
-.venv/bin/python -m w2s_research.decode_cli --idea strong_only --benchmark gsm8k --eval-size 100 --out /scratch2/ml23/smur0075/decode_strong.json
-# Frontier sweep with the entropy policy:
+# Baselines define the utility band. Run them FREE-RUNNING (--span-stop none) so the strong
+# model generates its whole answer in one call — this is the canonical U_strong, not a
+# line-segmented re-prefill. (weak_only never defers, so --span-stop is moot for it.)
+<gpu-python> -m w2s_research.decode_cli --idea weak_only   --benchmark gsm8k --eval-size 100 --out /scratch2/ml23/smur0075/decode_weak.json
+<gpu-python> -m w2s_research.decode_cli --idea strong_only --benchmark gsm8k --eval-size 100 --span-stop none --span-max-tokens 1024 --out /scratch2/ml23/smur0075/decode_strong.json
+# Frontier sweep with the entropy policy (span-level handoff = default --span-stop newline):
 for T in 0.3 0.6 1.0 1.5 2.0; do
-  .venv/bin/python -m w2s_research.decode_cli --idea entropy_threshold --benchmark gsm8k --eval-size 100 --tau $T
+  <gpu-python> -m w2s_research.decode_cli --idea entropy_threshold --benchmark gsm8k --eval-size 100 --tau $T
 done
 ```
+
+**Baseline-measurement decision (recorded per whole-branch review):** `strong_only` is run with
+`--span-stop none` so `U_strong` reflects the strong model free-running to EOS, not N line-segmented
+re-prefilled calls. The deferral policies (entropy/margin) keep the default span-level handoff
+(`--span-stop newline`). At the gate, sanity-check that line-segmented `U_strong` ≈ free-running
+`U_strong` if you also run strong_only with the default span stop.
 **GATE 1a:** `weak_only` utility (`U_weak`) and `strong_only` utility (`U_strong`) print, and
 `U_strong − U_weak` is a meaningful gap (expected ~0.40+ on GSM8K). `weak_only` outputs are coherent
 and parseable (utility clearly > 0). If the 1B weak is incoherent or the gap is small, STOP and

@@ -190,6 +190,11 @@ tie-break by higher `U_M`. The full set of `(U_M, f_weak)` operating points (e.g
 `τ` sweep) is stored so we can plot the utility-vs-fraction Pareto frontier. `R_bar` is a
 server config knob.
 
+**Baseline measurement.** `U_weak` and `U_strong` must be measured **free-running** (the strong
+model generates its whole answer in one call, `--span-stop none`), not via the line-segmented
+span handoff used by the deferral policies — otherwise repeated re-prefill could skew `U_strong`,
+the denominator of `utility_recovery`. The deferral policies themselves use span-level handoff.
+
 ## 5. End-to-end data flow
 
 1. Agent session starts (SLURM GPU job). Reads notebook + leaderboard + shared findings.
