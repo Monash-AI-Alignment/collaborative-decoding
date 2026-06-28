@@ -103,3 +103,11 @@ def test_aggregate_distinguishes_char_weighting_from_averaging():
     ).run_example("i")
     # char-weighted aggregate = 6/(6+2) = 0.75, NOT the naive average (1.0+0.0)/2 = 0.5
     assert aggregate_weak_fraction([r1, r2]) == 0.75
+
+
+def test_empty_strong_span_marks_unfinished():
+    weak = FakeWeakModel(steps=[W("x", entropy=2.0)])           # high entropy -> policy defers
+    strong = FakeStrongModel(outputs=[StrongOutput(text="", finished=False)])  # empty span -> stall
+    r = CollaborativeDecoder(weak, strong, HighEntropyDefers(), DecodeConfig()).run_example("i")
+    assert r.finished is False
+    assert r.strong_chars == 0

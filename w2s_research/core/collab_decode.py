@@ -76,8 +76,8 @@ class CollaborativeDecoder:
                 if out.finished:
                     finished = True
                     break
-                if out.text == "":          # no progress -> stop to avoid an infinite loop
-                    finished = True
+                if out.text == "":          # no progress (stall) -> stop; NOT a successful finish
+                    finished = False
                     break
 
             if len(assistant) >= cfg.max_chars:

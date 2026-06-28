@@ -103,7 +103,7 @@ def load_benchmark(name: str, split: str, limit: Optional[int] = None,
     if jsonl_path is not None:
         rows = [json.loads(line) for line in open(jsonl_path) if line.strip()]
         exs = [BenchmarkExample(question=r["question"], answer=str(r["answer"])) for r in rows]
-        return exs[:limit] if limit else exs
+        return exs[:limit] if limit is not None else exs
     return _load_from_hf(name, split, limit)
 
 
@@ -122,6 +122,6 @@ def _load_from_hf(name: str, split: str, limit: Optional[int]) -> List[Benchmark
             if gold is None:
                 continue
             exs.append(BenchmarkExample(question=row["problem"], answer=gold))
-    if limit:
+    if limit is not None:
         exs = exs[:limit]
     return exs

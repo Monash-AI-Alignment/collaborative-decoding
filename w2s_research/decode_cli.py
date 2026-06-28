@@ -64,6 +64,11 @@ def main():
     p.add_argument("--tau", type=float, default=None, help="entropy/margin threshold for the idea")
     p.add_argument("--defer-prob", type=float, default=None, help="random_defer probability")
     p.add_argument("--out", default=None, help="optional path to write results JSON")
+    p.add_argument("--span-stop", choices=["newline", "none"], default="newline",
+                   help="Strong-model span boundary: 'newline' stops each span at a newline (span-level handoff); "
+                        "'none' lets the strong model free-run to EOS (use for clean weak_only/strong_only baselines).")
+    p.add_argument("--span-max-tokens", type=int, default=None,
+                   help="Max tokens per strong span (overrides the DecodeConfig default).")
     args = p.parse_args()
 
     cfg = DecodeConfig(benchmark=args.benchmark, eval_size=args.eval_size, split=args.split)
@@ -72,6 +77,9 @@ def main():
         cfg.margin_threshold = args.tau          # consumed by margin_threshold
     if args.defer_prob is not None:
         cfg.defer_prob = args.defer_prob
+    cfg.span_stop = None if args.span_stop == "none" else ["\n"]
+    if args.span_max_tokens is not None:
+        cfg.span_max_tokens = args.span_max_tokens
 
     out = run_decode(cfg, idea=args.idea)
     summary = {k: out[k] for k in ("idea", "benchmark", "utility", "weak_token_fraction", "n")}

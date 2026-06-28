@@ -49,3 +49,8 @@ def test_load_benchmark_from_jsonl(tmp_path):
 def test_load_benchmark_respects_limit():
     exs = load_benchmark("gsm8k", "test", limit=1, jsonl_path=str(FIX / "gsm8k_tiny.jsonl"))
     assert len(exs) == 1
+
+
+def test_load_benchmark_limit_zero_is_empty():
+    exs = load_benchmark("gsm8k", "test", limit=0, jsonl_path=str(FIX / "gsm8k_tiny.jsonl"))
+    assert exs == []
