@@ -15,7 +15,9 @@ def test_fake_weak_emits_scripted_steps():
 
 def test_fake_weak_runs_out_returns_eos():
     weak = FakeWeakModel(steps=[])
-    assert weak.next_step("inst", "").is_eos is True
+    step = weak.next_step("inst", "")
+    assert step.is_eos is True
+    assert step.text_piece == ""
 
 
 def test_fake_strong_returns_scripted_output():
@@ -25,3 +27,4 @@ def test_fake_strong_returns_scripted_output():
     assert o0.text == "= 4\n" and o0.finished is False
     o1 = strong.generate("inst", "2 + 2= 4\n", stop=["\n"], max_tokens=16, temperature=0.0)
     assert o1.finished is True
+    assert strong.calls == ["2 + 2", "2 + 2= 4\n"]
