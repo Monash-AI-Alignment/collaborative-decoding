@@ -5,8 +5,6 @@ final-position logits. Chat-templates the (instruction, assistant_text) using th
 weak model's OWN tokenizer with assistant-continuation, so it composes with a
 different-tokenizer strong model at the text level.
 """
-from typing import Optional
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -54,7 +52,7 @@ class HFWeakModel:
         top1_prob = float(top2.values[0].item())
         margin = float((top2.values[0] - top2.values[1]).item()) if top2.values.numel() > 1 else top1_prob
 
-        is_eos = top_id == self.eos_token_id
+        is_eos = self.eos_token_id is not None and top_id == self.eos_token_id
         if is_eos:
             text_piece = ""
         else:
