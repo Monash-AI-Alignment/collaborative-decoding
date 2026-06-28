@@ -29,10 +29,13 @@ uncertain — high logit entropy).
 
 | Role | Model | Access | Tokenizer |
 |------|-------|--------|-----------|
-| Weak | `Qwen/Qwen2.5-3B-Instruct` | white-box (HF Transformers, per-step logits) | Qwen |
-| Strong | `meta-llama/Llama-3.1-8B-Instruct` | black-box (vLLM, text in/out only) | Llama (different) |
+| Weak | `meta-llama/Llama-3.2-1B-Instruct` | white-box (HF Transformers, per-step logits) | Llama |
+| Strong | `Qwen/Qwen2.5-7B-Instruct` | black-box (vLLM, text in/out only) | Qwen (different) |
 
-Llama-3.1 is gated on HuggingFace: requires license acceptance and `HF_TOKEN`.
+The **weak** model (Llama-3.2-1B) is gated on HuggingFace: requires license acceptance and
+`HF_TOKEN`. The strong model (Qwen2.5) is ungated. The two use different tokenizers, preserving
+the cross-tokenizer constraint. Strong-model size is a knob (`Qwen2.5-7B` default; `-14B` for a
+higher ceiling) — both fit alongside the 1B weak on one A100-80GB / H100.
 
 ## 2. Goals and non-goals
 
@@ -133,7 +136,7 @@ class StrongModel(Protocol):
                  temperature: float) -> str: ...   # text in, text out ONLY
 ```
 
-`VLLMStrongModel` wraps a local vLLM-served Llama-3.1-8B but **exposes no logits** —
+`VLLMStrongModel` wraps a local vLLM-served Qwen2.5-7B-Instruct but **exposes no logits** —
 enforcing the black-box constraint in code so ideas cannot cheat. An `APIStrongModel`
 (Anthropic/OpenAI) adapter is a later drop-in.
 
@@ -211,16 +214,19 @@ server config knob.
 `WORKSPACE_DIR`, `SERVER_URL`/`ORCHESTRATOR_API_URL`, `LOCAL_MODE`. Set on M3:
 `HF_HOME=/scratch2/ml23/smur0075/hf_cache`, `HF_TOKEN=...` (Llama gate),
 `ANTHROPIC_API_KEY` (researcher + AlpacaEval judge). New defaults:
-`WEAK_MODEL=Qwen/Qwen2.5-3B-Instruct`, `STRONG_MODEL=meta-llama/Llama-3.1-8B-Instruct`,
-`R_BAR=0.98`. Optional `SHARED_FINDINGS_DIR` for the filesystem forum.
+`WEAK_MODEL=meta-llama/Llama-3.2-1B-Instruct`, `STRONG_MODEL=Qwen/Qwen2.5-7B-Instruct`,
+`R_BAR=0.98`. `HF_TOKEN` is required for the (gated) weak Llama model. Optional
+`SHARED_FINDINGS_DIR` for the filesystem forum.
 
 ## 7. Infrastructure (M3 / SLURM)
 
 - **Server**: GPU-free Flask app (GSM8K/MATH utility is CPU string-matching). Runs as a
   small persistent process reachable by compute nodes via `ORCHESTRATOR_API_URL`.
 - **Agent**: `AutonomousAgentLoop` on a GPU SLURM job (one A100-80GB or H100 fits
-  Qwen-3B + Llama-8B + KV cache). `slurm/agent.sbatch` loads `cuda/12.2.0`, activates the
-  venv, sets `HF_HOME`/`HF_TOKEN`, points at the server.
+  Llama-1B + Qwen-7B + KV cache). `slurm/agent.sbatch` loads `cuda/12.2.0`, activates the
+  venv, sets `HF_HOME`/`HF_TOKEN`, points at the server. The HF-served weak model and the
+  vLLM-served strong model share one GPU, so vLLM `gpu_memory_utilization` is capped
+  (~0.6) to leave room for the weak model.
 - **Scale-out**: `sbatch` N agent jobs against the same server (HTTP findings hub already
   supports this). Optional shared-FS forum via `SHARED_FINDINGS_DIR` if centralizing is
   undesirable.
@@ -229,15 +235,16 @@ server config knob.
 
 ## 8. Build phases (verify each gate before proceeding)
 
-**Phase 0 — setup.** `uv sync`; download Qwen2.5-3B + Llama-3.1-8B to scratch2; smoke-test
+**Phase 0 — setup.** `uv sync`; download Llama-3.2-1B + Qwen2.5-7B to scratch2; smoke-test
 loading weak (HF) + strong (vLLM) on a GPU node.
 
 **Phase 1 — engine + baselines, CLI only.** Implement `weak_model`, `strong_model`,
 `collab_decode`, `policy`, `benchmarks`; ship baseline policies. Run `weak_only` and
 `strong_only` on GSM8K.
-- **GATE 1a:** `U_strong − U_weak` is a *meaningful* gap. If Qwen2.5-3B ≈ Llama-3.1-8B on
-  GSM8K (plausible — see Risks), revisit model sizes (e.g., smaller/base weak, or larger
-  strong) before building further.
+- **GATE 1a:** `U_strong − U_weak` is a *meaningful* gap (expected large for Llama-3.2-1B
+  ~44% vs Qwen2.5-7B ~85% on GSM8K) **and** the weak model is coherent enough that
+  `weak_only` produces valid, parseable outputs (the flipped risk now that the weak model
+  is small — see Risks). Adjust model sizes if either fails.
 - **GATE 1b:** cross-tokenizer span handoff yields coherent text; `entropy_threshold` τ-sweep
   produces a sensible `(U, f_weak)` frontier between the two baselines.
 
@@ -253,12 +260,13 @@ bumped to latest Opus.
 
 ## 9. Risks & open questions
 
-1. **Weak≈strong utility gap (highest risk).** Qwen2.5-3B-Instruct is already strong on
-   GSM8K (~78%) vs Llama-3.1-8B-Instruct (~84%); a small gap makes "defer to recover
-   utility" uninteresting and makes `utility_recovery` noisy. **Mitigation:** Phase 1
-   measures the gap *first*; if too small, switch the weak model (e.g., Qwen2.5-1.5B or a
-   base model) or the strong model (e.g., Llama-3.1-70B) before investing further. MATH has
-   a larger relative gap and is the better primary benchmark.
+1. **Weak too weak vs. gap (flipped risk).** With weak=Llama-3.2-1B (~44% GSM8K) and
+   strong=Qwen2.5-7B (~85%), the utility gap is now healthily large — good for the recovery
+   story. The risk flips: a 1B model may be *too* incoherent on MATH, producing
+   unparseable outputs or deferring nearly everything (`f_weak → 0`), which is
+   uninteresting. **Mitigation:** Phase 1 Gate 1a checks `weak_only` coherence/parse-rate
+   per benchmark; if a 1B weak is unusable on MATH, bump to Qwen2.5-1.5B or run MATH with a
+   slightly larger weak. GSM8K is the safer primary benchmark for the 1B weak.
 2. **Weak HF decode-loop throughput.** Token-by-token HF generation is slow vs vLLM.
    **Mitigation:** batch examples, cap `max_new_tokens`, use vLLM for baselines; consider
    vLLM per-step logprobs for the weak model if the loop is too slow.
@@ -268,7 +276,8 @@ bumped to latest Opus.
    configurable; GSM8K/MATH carry Phases 1–2.
 5. **`f_weak` integrity.** Self-reported numbers are cheatable; mitigated by making the
    shared engine the sole measurer. Future: server re-runs a sampled subset to audit.
-6. **Llama gating.** Requires HF license acceptance + `HF_TOKEN` in the SLURM env.
+6. **Llama gating.** The weak model (Llama-3.2-1B) requires HF license acceptance +
+   `HF_TOKEN` in the SLURM env. The strong Qwen model is ungated.
 
 ## 10. Researcher-agent model & session notes
 
