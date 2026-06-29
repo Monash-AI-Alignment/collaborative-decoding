@@ -14,7 +14,7 @@ def _weak():
 
 
 def test_run_one_alpaca_uses_lc_winrate():
-    judge = VLLMJudge(chat_fn=lambda p: "A")   # always prefers Response A (position-swapped -> 0.5)
+    judge = VLLMJudge(pref_fn=lambda p: 1.0)   # always prefers Response A (position-swapped -> 0.5)
     weak, strong = _weak(), FakeStrongModel([])
     spec = {"idea": "weak_only", "params": {}, "span_max": 64}
     m = policy_search.run_one(weak, strong, ["say hi"], ["reference answer"],

@@ -1,10 +1,16 @@
 """Black-box LLM judge over an OpenAI-compatible vLLM server (local Gemma).
 
 Measures ONLY utility: it compares a method's output TEXT against a reference
-TEXT. It never sees logits or model internals. Pairwise verdicts are
-position-swapped (judge twice, A/B reversed) so per-position bias cancels.
+TEXT. It never sees the weak/strong models' logits or internals.
+
+Uses AlpacaEval-2.0-style CONTINUOUS (logprob-weighted) preferences: the judge's
+probability of preferring the A-position response, read from the verdict token's
+logprobs -- so a response that usually-but-not-always loses still scores a graded,
+non-zero winrate (a hard A/B verdict would collapse these to exactly 0 or 1).
+Preferences are position-swapped (judge A/B both orderings) so position bias cancels.
 """
 import json
+import math
 import os
 import re
 import time
@@ -26,8 +32,7 @@ Response B:
 {b}
 
 Which response is better overall (helpfulness, accuracy, relevance)? \
-Answer with ONLY a single letter: A or B. If they are genuinely equal, answer: tie."""
-
+Answer with ONLY a single letter: A or B."""
 
 _VERDICT_RE = re.compile(r"\b([AB])\b")
 
@@ -40,20 +45,38 @@ def _parse_verdict(reply: str) -> str:
     return m.group(1) if m else "tie"
 
 
+def _pref_from_logprobs(entries):
+    """P(A preferred) from a verdict token's top_logprobs list.
+
+    Sums probability mass over tokens that read as 'A' vs 'B' (whitespace/case
+    stripped) and normalizes. Returns None if neither letter appears (caller
+    then falls back to the hard parsed verdict).
+    """
+    a = b = 0.0
+    for e in entries or []:
+        tok = (e.get("token") or "").strip().upper()
+        if tok == "A":
+            a += math.exp(e["logprob"])
+        elif tok == "B":
+            b += math.exp(e["logprob"])
+    return a / (a + b) if (a + b) > 0 else None
+
+
 class VLLMJudge:
     def __init__(self, base_url=DEFAULT_JUDGE_URL, model=DEFAULT_JUDGE_MODEL,
-                 max_workers=8, timeout=60, chat_fn=None):
+                 max_workers=8, timeout=60, pref_fn=None):
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.max_workers = max_workers
         self.timeout = timeout
-        self._chat_fn = chat_fn          # injectable for tests
+        self._pref_fn = pref_fn          # injectable for tests: prompt -> P(A preferred)
 
-    def _http_chat(self, prompt: str) -> str:
+    def _http_pref(self, prompt: str) -> float:
         body = json.dumps({
             "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
-            "max_tokens": 8, "temperature": 0.0,
+            "max_tokens": 1, "temperature": 0.0,
+            "logprobs": True, "top_logprobs": 20,
         }).encode()
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions", data=body,
@@ -62,26 +85,33 @@ class VLLMJudge:
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
                     d = json.loads(resp.read())
-                return d["choices"][0]["message"]["content"]
+                choice = d["choices"][0]
+                lp = choice.get("logprobs")
+                if lp and lp.get("content"):
+                    p = _pref_from_logprobs(lp["content"][0].get("top_logprobs"))
+                    if p is not None:
+                        return p
+                # logprobs unavailable -> fall back to a hard verdict
+                return {"A": 1.0, "B": 0.0, "tie": 0.5}[
+                    _parse_verdict(choice["message"]["content"])]
             except Exception:
                 if attempt == 1:
-                    return "tie"        # judge failure -> neutral, never crash the run
+                    return 0.5          # judge failure -> neutral, never crash the run
                 time.sleep(0.5)         # brief backoff before the single retry
 
-    def _chat(self, prompt: str) -> str:
-        return self._chat_fn(prompt) if self._chat_fn else self._http_chat(prompt)
+    def _pref(self, prompt: str) -> float:
+        return self._pref_fn(prompt) if self._pref_fn else self._http_pref(prompt)
 
-    def compare(self, instruction: str, output_a: str, output_b: str) -> str:
-        prompt = _PAIRWISE_PROMPT.format(instruction=instruction, a=output_a, b=output_b)
-        return _parse_verdict(self._chat(prompt))
+    def compare_prob(self, instruction: str, output_a: str, output_b: str) -> float:
+        """P(the A-position response is the better one), continuous in [0, 1]."""
+        return self._pref(_PAIRWISE_PROMPT.format(instruction=instruction, a=output_a, b=output_b))
 
     def winrate_one(self, instruction: str, candidate: str, reference: str) -> dict:
-        v1 = self.compare(instruction, candidate, reference)   # A=candidate
-        v2 = self.compare(instruction, reference, candidate)   # A=reference
-        s1 = {"A": 1.0, "B": 0.0, "tie": 0.5}[v1]
-        s2 = {"A": 0.0, "B": 1.0, "tie": 0.5}[v2]
-        return {"win": (s1 + s2) / 2, "cand_len": len(candidate),
-                "ref_len": len(reference), "verdicts": [v1, v2]}
+        p1 = self.compare_prob(instruction, candidate, reference)   # candidate in A slot
+        p2 = self.compare_prob(instruction, reference, candidate)   # reference in A slot
+        win = (p1 + (1.0 - p2)) / 2.0                               # position-swapped, continuous
+        return {"win": win, "cand_len": len(candidate),
+                "ref_len": len(reference), "prefs": [round(p1, 4), round(p2, 4)]}
 
     def winrate(self, instructions, candidates, references) -> dict:
         triples = list(zip(instructions, candidates, references))

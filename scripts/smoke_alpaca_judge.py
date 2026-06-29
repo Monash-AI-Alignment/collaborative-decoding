@@ -40,7 +40,7 @@ def main():
     print("winrate(plain) =", round(plain_winrate(scored["per_example"]), 3))
     print("winrate(LC)    =", round(lc_winrate(scored["per_example"]), 3))
     for i, p in enumerate(scored["per_example"]):
-        print(f"  ex{i}: win={p['win']} cand_len={p['cand_len']} ref_len={p['ref_len']} verdicts={p['verdicts']}")
+        print(f"  ex{i}: win={round(p['win'], 3)} cand_len={p['cand_len']} ref_len={p['ref_len']} prefs={p['prefs']}")
 
 
 if __name__ == "__main__":

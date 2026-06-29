@@ -3,11 +3,11 @@ from w2s_research.core.judge import VLLMJudge
 
 
 def test_score_generations_uses_judge():
-    # judge prefers the response containing "STRONG"
-    def chat(prompt):
+    # judge prefers (P(A)=1.0) the response containing "STRONG", else P(A)=0.0
+    def pref(prompt):
         a = prompt.split("Response A:")[1].split("Response B:")[0]
-        return "A" if "STRONG" in a else "B"
-    judge = VLLMJudge(chat_fn=chat)
+        return 1.0 if "STRONG" in a else 0.0
+    judge = VLLMJudge(pref_fn=pref)
     instr = ["q1", "q2"]
     gens = ["STRONG ans", "weak ans"]
     refs = ["ref one", "STRONG ref"]

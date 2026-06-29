@@ -1,4 +1,4 @@
-from w2s_research.core.judge import VLLMJudge, _parse_verdict
+from w2s_research.core.judge import VLLMJudge, _parse_verdict, _pref_from_logprobs
 
 
 def test_parse_verdict():
@@ -11,29 +11,42 @@ def test_parse_verdict():
     assert _parse_verdict("B (tier 1)") == "B"               # "tier" must NOT read as tie
 
 
-def test_winrate_one_position_swapped():
-    # Fake judge that ALWAYS says the first-listed answer (A) is better -> pure position bias.
-    j = VLLMJudge(chat_fn=lambda prompt: "A")
+def test_pref_from_logprobs():
+    import math
+    # A is near-certain
+    entries = [{"token": "A", "logprob": math.log(0.9)}, {"token": "B", "logprob": math.log(0.1)}]
+    assert abs(_pref_from_logprobs(entries) - 0.9) < 1e-9
+    # whitespace / case variants accumulate to the right letter
+    entries = [{"token": " a", "logprob": math.log(0.4)}, {"token": "B", "logprob": math.log(0.6)}]
+    assert abs(_pref_from_logprobs(entries) - 0.4) < 1e-9
+    # neither letter present -> None (caller falls back)
+    assert _pref_from_logprobs([{"token": "hello", "logprob": -1.0}]) is None
+    assert _pref_from_logprobs([]) is None
+
+
+def test_winrate_one_position_swapped_continuous():
+    # Pure position bias: judge always assigns P(A)=1.0 regardless of content.
+    j = VLLMJudge(pref_fn=lambda prompt: 1.0)
     r = j.winrate_one("inst", "cand", "reference_text")
-    # call1 (A=cand) -> cand wins; call2 (A=ref) -> ref wins. Swapping cancels bias => 0.5
+    # p1 (A=cand)=1.0, p2 (A=ref)=1.0 -> win=(1.0 + (1-1.0))/2 = 0.5 (bias cancels)
     assert r["win"] == 0.5
-    assert r["cand_len"] == len("cand")
-    assert r["ref_len"] == len("reference_text")
-    assert r["verdicts"] == ["A", "A"]
+    assert r["cand_len"] == len("cand") and r["ref_len"] == len("reference_text")
+    assert r["prefs"] == [1.0, 1.0]
 
 
-def test_winrate_one_genuine_preference():
-    # Judge prefers whichever side contains "good" regardless of position.
-    def chat(prompt):
+def test_winrate_one_graded_preference():
+    # Continuous: prefer the side containing "good" with prob 0.8, else 0.2.
+    def pref(prompt):
         a_block = prompt.split("Response A:")[1].split("Response B:")[0]
-        return "A" if "good" in a_block else "B"
-    j = VLLMJudge(chat_fn=chat)
+        return 0.8 if "good" in a_block else 0.2
+    j = VLLMJudge(pref_fn=pref)
     r = j.winrate_one("inst", "good answer", "bad answer")
-    assert r["win"] == 1.0          # candidate preferred in both orderings
+    # p1 (A=cand "good")=0.8, p2 (A=ref "bad")=0.2 -> win=(0.8 + (1-0.2))/2 = 0.8
+    assert abs(r["win"] - 0.8) < 1e-9
 
 
 def test_winrate_aggregates():
-    j = VLLMJudge(chat_fn=lambda p: "A", max_workers=2)
+    j = VLLMJudge(pref_fn=lambda p: 1.0, max_workers=2)
     out = j.winrate(["i1", "i2"], ["c1", "c2"], ["r1", "r2"])
     assert out["winrate"] == 0.5
     assert len(out["per_example"]) == 2
