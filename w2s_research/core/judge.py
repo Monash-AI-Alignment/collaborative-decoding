@@ -70,6 +70,10 @@ class VLLMJudge:
         self.max_workers = max_workers
         self.timeout = timeout
         self._pref_fn = pref_fn          # injectable for tests: prompt -> P(A preferred)
+        # diagnostic counters (approximate under threading; used only for a warning heuristic):
+        # a high failure rate means winrates are pulled toward the 0.5 neutral fallback.
+        self.n_calls = 0
+        self.n_failures = 0
 
     def _http_pref(self, prompt: str) -> float:
         body = json.dumps({
@@ -81,6 +85,7 @@ class VLLMJudge:
         req = urllib.request.Request(
             f"{self.base_url}/chat/completions", data=body,
             headers={"content-type": "application/json"})
+        self.n_calls += 1
         for attempt in range(2):
             try:
                 with urllib.request.urlopen(req, timeout=self.timeout) as resp:
@@ -96,6 +101,7 @@ class VLLMJudge:
                     _parse_verdict(choice["message"]["content"])]
             except Exception:
                 if attempt == 1:
+                    self.n_failures += 1
                     return 0.5          # judge failure -> neutral, never crash the run
                 time.sleep(0.5)         # brief backoff before the single retry
 

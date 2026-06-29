@@ -262,8 +262,10 @@ def main():
         raise
     gap = us - uw
     baselines = {"benchmark": bench, "n": len(exs), "u_weak": uw, "u_strong": us,
-                 "gap": gap, "r_bar": args.r_bar, "winrate_mode": args.winrate_mode,
-                 "reference": ("strong_only" if strong_ref_mode else "dataset_gold")}
+                 "gap": gap, "r_bar": args.r_bar,
+                 "reference": ("strong_model_outputs" if strong_ref_mode else "dataset_gold")}
+    if bench == "alpaca_eval":
+        baselines["winrate_mode"] = args.winrate_mode
     # keep both winrate flavors + raw judge records for the baselines too (reproducibility)
     for label, b in (("weak_only", weak_base), ("strong_only", strong_base)):
         if b is None:
@@ -276,8 +278,14 @@ def main():
     with open(os.path.join(out_dir, "baselines.json"), "w") as f:
         json.dump(baselines, f, indent=2)
     print(f"[search] U_weak={uw:.3f} U_strong={us:.3f} gap={gap:.3f}", flush=True)
+    if judge is not None and judge.n_calls and judge.n_failures / judge.n_calls > 0.1:
+        print(f"[search] WARNING: judge failed {judge.n_failures}/{judge.n_calls} calls (>10%) "
+              f"during baselines; winrates are pulled toward 0.5 and recovery may be inflated. "
+              f"Check the judge server before trusting results.", flush=True)
     if gap <= 0:
-        print("[search] WARNING: non-positive gap; recovery is meaningless.", flush=True)
+        print("[search] FATAL: non-positive gap (U_weak >= U_strong) -> recovery undefined. "
+              "Aborting before the search burns the budget (baselines.json is saved).", flush=True)
+        raise SystemExit(2)
 
     all_rows = []
     best = {"weak_token_fraction": -1.0}     # best meeting the bar

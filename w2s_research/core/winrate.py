@@ -6,6 +6,13 @@ win ~ sigmoid(b0 + b1 * z), where z is the standardized (cand_len - ref_len),
 then report the predicted win probability at length-difference = 0. This
 removes the judge's systematic preference for longer answers.
 
+NOTE: this is a PER-METHOD logistic fit (each method's records fit their own
+b0/b1 and are evaluated at their own zero-length-difference point). Recovery
+ratios and method ranking are unaffected by this choice (they compare quality
+controlling for length), but the absolute LC numbers are NOT the global-fit
+AlpacaEval-2.0 length-controlled winrate and should not be cited as directly
+comparable to published AlpacaEval-2.0 figures.
+
 Pure-Python (no numpy) so the core module carries no heavy dependency; the
 eval sets are small (<=805) and the gradient descent is cheap.
 """
