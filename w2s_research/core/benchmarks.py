@@ -12,7 +12,7 @@ from typing import List, Optional
 from w2s_research.ideas.ue_zeroshot import math_normalize
 from w2s_research.ideas.ue_zeroshot.math_eval_tools import grade_answer
 
-SUPPORTED = ("gsm8k", "math")
+SUPPORTED = ("gsm8k", "math", "alpaca_eval")
 
 _GSM8K_INSTRUCTION = (
     "Solve the following grade-school math problem. Show your reasoning, then give the "
@@ -35,6 +35,8 @@ def build_instruction(name: str, question: str) -> str:
         return _GSM8K_INSTRUCTION.format(q=question)
     if name == "math":
         return _MATH_INSTRUCTION.format(q=question)
+    if name == "alpaca_eval":
+        return question                       # open-ended: raw instruction, no wrapper
     raise ValueError(f"Unknown benchmark: {name}")
 
 
@@ -89,6 +91,9 @@ def is_correct(name: str, generated_text: str, gold: str) -> bool:
 
 
 def utility(name: str, generations: List[str], golds: List[str]) -> float:
+    if name == "alpaca_eval":
+        raise ValueError("alpaca_eval utility is judge-scored; "
+                         "use w2s_research.core.alpaca_eval.score_generations")
     assert len(generations) == len(golds)
     if not generations:
         return 0.0
@@ -104,6 +109,10 @@ def load_benchmark(name: str, split: str, limit: Optional[int] = None,
         rows = [json.loads(line) for line in open(jsonl_path) if line.strip()]
         exs = [BenchmarkExample(question=r["question"], answer=str(r["answer"])) for r in rows]
         return exs[:limit] if limit is not None else exs
+    if name == "alpaca_eval":
+        from w2s_research.core.alpaca_eval import load_alpaca_eval
+        exs = load_alpaca_eval(limit=limit)
+        return [BenchmarkExample(question=e.instruction, answer=e.reference) for e in exs]
     return _load_from_hf(name, split, limit)
 
 
