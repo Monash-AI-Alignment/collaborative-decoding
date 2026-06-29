@@ -224,15 +224,27 @@ def main():
 
     # --- baselines (free-running strong, per the design spec) ---
     print("[search] measuring baselines...", flush=True)
-    uw = run_one(weak, strong, instrs, golds, bench,
-                 {"idea": "weak_only", "params": {}, "span_max": 256},
-                 judge=judge, winrate_mode=args.winrate_mode)["utility"]
-    us = run_one(weak, strong, instrs, golds, bench,
-                 {"idea": "strong_only", "params": {}, "span_max": 1024,
-                  "span_stop": None}, judge=judge, winrate_mode=args.winrate_mode)["utility"]
+    try:
+        weak_base = run_one(weak, strong, instrs, golds, bench,
+                            {"idea": "weak_only", "params": {}, "span_max": 256},
+                            judge=judge, winrate_mode=args.winrate_mode)
+        strong_base = run_one(weak, strong, instrs, golds, bench,
+                              {"idea": "strong_only", "params": {}, "span_max": 1024,
+                               "span_stop": None}, judge=judge, winrate_mode=args.winrate_mode)
+    except Exception as e:               # baselines are essential -> fail loud, don't run on garbage
+        print(f"[search] FATAL: baseline measurement failed: {e!r}", flush=True)
+        raise
+    uw, us = weak_base["utility"], strong_base["utility"]
     gap = us - uw
     baselines = {"benchmark": bench, "n": len(exs), "u_weak": uw, "u_strong": us,
-                 "gap": gap, "r_bar": args.r_bar}
+                 "gap": gap, "r_bar": args.r_bar, "winrate_mode": args.winrate_mode}
+    # keep both winrate flavors + raw judge records for the baselines too (reproducibility)
+    for label, b in (("weak_only", weak_base), ("strong_only", strong_base)):
+        for k in ("winrate_plain", "winrate_lc"):
+            if k in b:
+                baselines[f"{label}_{k}"] = b[k]
+        if "_judge_per_example" in b:
+            baselines.setdefault("judge_per_example", {})[label] = b["_judge_per_example"]
     with open(os.path.join(out_dir, "baselines.json"), "w") as f:
         json.dump(baselines, f, indent=2)
     print(f"[search] U_weak={uw:.3f} U_strong={us:.3f} gap={gap:.3f}", flush=True)

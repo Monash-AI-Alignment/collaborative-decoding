@@ -7,6 +7,7 @@ position-swapped (judge twice, A/B reversed) so per-position bias cancels.
 import json
 import os
 import re
+import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
@@ -33,7 +34,7 @@ _VERDICT_RE = re.compile(r"\b([AB])\b")
 
 def _parse_verdict(reply: str) -> str:
     r = (reply or "").strip().upper()
-    if "TIE" in r:
+    if re.search(r"\bTIE\b", r):     # word-boundary: don't match "tied"/"tier"/"ties"
         return "tie"
     m = _VERDICT_RE.search(r)        # standalone A/B only (not letters inside words)
     return m.group(1) if m else "tie"
@@ -65,6 +66,7 @@ class VLLMJudge:
             except Exception:
                 if attempt == 1:
                     return "tie"        # judge failure -> neutral, never crash the run
+                time.sleep(0.5)         # brief backoff before the single retry
 
     def _chat(self, prompt: str) -> str:
         return self._chat_fn(prompt) if self._chat_fn else self._http_chat(prompt)

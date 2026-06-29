@@ -7,6 +7,8 @@ def test_parse_verdict():
     assert _parse_verdict("tie") == "tie"
     assert _parse_verdict("TIE - both equal") == "tie"
     assert _parse_verdict("garbage") == "tie"   # default to tie when unclear
+    assert _parse_verdict("A is tied to the prompt") == "A"   # "tied" must NOT read as tie
+    assert _parse_verdict("B (tier 1)") == "B"               # "tier" must NOT read as tie
 
 
 def test_winrate_one_position_swapped():
