@@ -28,11 +28,15 @@ import time
 
 # ----------------------------- scoring one config -----------------------------
 
-def run_one(weak, strong, instructions, golds, benchmark, spec):
-    """Run one deferral-policy configuration; return a metrics dict (+ generations)."""
+def run_one(weak, strong, instructions, golds, benchmark, spec, judge=None, winrate_mode="lc"):
+    """Run one deferral-policy configuration; return a metrics dict (+ generations).
+
+    Math benchmarks score with CPU exact-match. alpaca_eval scores via the judge:
+    winrate of the generations vs the reference outputs (golds), reporting both
+    plain and length-controlled winrate; `utility` is the chosen one (default LC).
+    """
     from w2s_research.core.decode_config import DecodeConfig
     from w2s_research.core.collab_decode import CollaborativeDecoder, aggregate_weak_fraction
-    from w2s_research.core.benchmarks import utility
 
     cfg = DecodeConfig(benchmark=benchmark, eval_size=len(instructions))
     cfg.span_stop = spec.get("span_stop", ["\n"])
@@ -44,16 +48,27 @@ def run_one(weak, strong, instructions, golds, benchmark, spec):
     policy = mod.build_policy(cfg)
     dec = CollaborativeDecoder(weak, strong, policy, cfg)
     results = dec.run_dataset(instructions)
-
     gens = [r.text for r in results]
-    return {
-        "utility": utility(benchmark, gens, golds),
+
+    out = {
         "weak_token_fraction": aggregate_weak_fraction(results),
         "avg_defers": sum(r.num_defers for r in results) / len(results),
         "avg_weak_steps": sum(r.num_weak_steps for r in results) / len(results),
         "finished_frac": sum(1 for r in results if r.finished) / len(results),
         "_generations": gens,
     }
+    if benchmark == "alpaca_eval":
+        from w2s_research.core.alpaca_eval import score_generations
+        from w2s_research.core.winrate import plain_winrate, lc_winrate
+        scored = score_generations(judge, instructions, gens, golds)
+        out["winrate_plain"] = plain_winrate(scored["per_example"])
+        out["winrate_lc"] = lc_winrate(scored["per_example"])
+        out["utility"] = out["winrate_lc"] if winrate_mode == "lc" else out["winrate_plain"]
+        out["_judge_per_example"] = scored["per_example"]
+    else:
+        from w2s_research.core.benchmarks import utility
+        out["utility"] = utility(benchmark, gens, golds)
+    return out
 
 
 # ----------------------------- curated search space -----------------------------
@@ -158,7 +173,9 @@ def recovery_of(u, u_weak, gap):
 
 def main():
     ap = argparse.ArgumentParser(description="Collaborative-decoding policy search")
-    ap.add_argument("--benchmark", default="gsm8k", choices=["gsm8k", "math"])
+    ap.add_argument("--benchmark", default="gsm8k", choices=["gsm8k", "math", "alpaca_eval"])
+    ap.add_argument("--winrate-mode", default="lc", choices=["plain", "lc"],
+                    help="alpaca_eval utility: length-controlled (lc, default) or plain winrate")
     ap.add_argument("--eval-size", type=int, default=50)
     ap.add_argument("--max-seconds", type=int, default=25200)   # ~7h
     ap.add_argument("--r-bar", type=float, default=0.98)
@@ -198,13 +215,21 @@ def main():
                              gpu_memory_utilization=base.strong_gpu_memory_utilization,
                              max_model_len=base.strong_max_model_len)
 
+    judge = None
+    if bench == "alpaca_eval":
+        from w2s_research.core.judge import VLLMJudge
+        judge = VLLMJudge()
+        print(f"[search] judge: {judge.model} @ {judge.base_url}  "
+              f"winrate_mode={args.winrate_mode}", flush=True)
+
     # --- baselines (free-running strong, per the design spec) ---
     print("[search] measuring baselines...", flush=True)
     uw = run_one(weak, strong, instrs, golds, bench,
-                 {"idea": "weak_only", "params": {}, "span_max": 256})["utility"]
+                 {"idea": "weak_only", "params": {}, "span_max": 256},
+                 judge=judge, winrate_mode=args.winrate_mode)["utility"]
     us = run_one(weak, strong, instrs, golds, bench,
                  {"idea": "strong_only", "params": {}, "span_max": 1024,
-                  "span_stop": None})["utility"]
+                  "span_stop": None}, judge=judge, winrate_mode=args.winrate_mode)["utility"]
     gap = us - uw
     baselines = {"benchmark": bench, "n": len(exs), "u_weak": uw, "u_strong": us,
                  "gap": gap, "r_bar": args.r_bar}
@@ -229,6 +254,9 @@ def main():
                "avg_weak_steps": round(metrics["avg_weak_steps"], 1),
                "finished_frac": round(metrics["finished_frac"], 3),
                "elapsed_s": round(elapsed(), 1)}
+        for k in ("winrate_plain", "winrate_lc"):     # alpaca_eval: keep both flavors
+            if k in metrics:
+                row[k] = round(metrics[k], 4)
         all_rows.append(row)
         rf.write(json.dumps(row) + "\n")
         rf.flush()
@@ -241,7 +269,8 @@ def main():
         if meets:
             with open(os.path.join(out_dir, "meeting_bar",
                                    f"{row['idea']}_{len(all_rows)}.json"), "w") as g:
-                json.dump({"row": row, "generations": metrics["_generations"]}, g, indent=2)
+                json.dump({"row": row, "generations": metrics["_generations"],
+                           "judge_per_example": metrics.get("_judge_per_example")}, g, indent=2)
             if row["weak_token_fraction"] > best["weak_token_fraction"]:
                 best.update(row)
                 with open(os.path.join(out_dir, "best.json"), "w") as g:
@@ -265,7 +294,8 @@ def main():
 
     def safe_run(spec, phase):
         try:
-            m = run_one(weak, strong, instrs, golds, bench, spec)
+            m = run_one(weak, strong, instrs, golds, bench, spec,
+                        judge=judge, winrate_mode=args.winrate_mode)
             return record(spec, m, phase)
         except Exception as e:           # never let one config kill the search
             print(f"[search] ERROR on {spec}: {e!r}", flush=True)
@@ -273,6 +303,8 @@ def main():
 
     # --- curated phase ---
     specs = curated_specs()
+    if bench == "alpaca_eval":               # math-only policies don't transfer to open-ended
+        specs = [s for s in specs if s["idea"] not in ("context_gate", "answer_protect")]
     print(f"[search] curated phase: {len(specs)} configs", flush=True)
     for spec in specs:
         if elapsed() > args.max_seconds:
