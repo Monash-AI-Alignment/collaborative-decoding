@@ -21,7 +21,7 @@ class HFWeakModel:
         self.device = device
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(
-            model_name, torch_dtype=_DTYPES[dtype],
+            model_name, dtype=_DTYPES[dtype],
         ).to(device).eval()
         self.eos_token_id = self.tokenizer.eos_token_id
 
@@ -37,6 +37,10 @@ class HFWeakModel:
             ids = self.tokenizer.apply_chat_template(
                 messages, tokenize=True, add_generation_prompt=True, return_tensors="pt",
             )
+        # transformers>=5 returns a BatchEncoding from apply_chat_template(tokenize=True);
+        # older versions return a bare tensor. Normalise to the input_ids tensor.
+        if not torch.is_tensor(ids):
+            ids = ids["input_ids"]
         return ids[:, -self.max_model_len:].to(self.device)
 
     @torch.no_grad()

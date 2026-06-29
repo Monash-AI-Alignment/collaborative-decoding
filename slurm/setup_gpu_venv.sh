@@ -28,7 +28,7 @@ uv venv --python "$PY_VER" "$VENV"
 echo "[setup] Installing vLLM (pulls a compatible torch) + HF libs + grader deps ..."
 uv pip install --python "$VENV/bin/python" \
     "vllm==0.11.0" \
-    "transformers>=4.51.0" \
+    "transformers>=4.51.0,<5" \
     "datasets==3.6.0" \
     "accelerate>=1.0.0" \
     "hf_transfer" \
