@@ -58,13 +58,16 @@ def run_one(weak, strong, instructions, golds, benchmark, spec, judge=None, winr
         "_generations": gens,
     }
     if benchmark == "alpaca_eval":
-        from w2s_research.core.alpaca_eval import score_generations
-        from w2s_research.core.winrate import plain_winrate, lc_winrate
-        scored = score_generations(judge, instructions, gens, golds)
-        out["winrate_plain"] = plain_winrate(scored["per_example"])
-        out["winrate_lc"] = lc_winrate(scored["per_example"])
-        out["utility"] = out["winrate_lc"] if winrate_mode == "lc" else out["winrate_plain"]
-        out["_judge_per_example"] = scored["per_example"]
+        if judge is None:                       # generation-only (e.g. producing the reference)
+            out["utility"] = None
+        else:
+            from w2s_research.core.alpaca_eval import score_generations
+            from w2s_research.core.winrate import plain_winrate, lc_winrate
+            scored = score_generations(judge, instructions, gens, golds)   # golds = reference texts
+            out["winrate_plain"] = plain_winrate(scored["per_example"])
+            out["winrate_lc"] = lc_winrate(scored["per_example"])
+            out["utility"] = out["winrate_lc"] if winrate_mode == "lc" else out["winrate_plain"]
+            out["_judge_per_example"] = scored["per_example"]
     else:
         from w2s_research.core.benchmarks import utility
         out["utility"] = utility(benchmark, gens, golds)
@@ -176,6 +179,10 @@ def main():
     ap.add_argument("--benchmark", default="gsm8k", choices=["gsm8k", "math", "alpaca_eval"])
     ap.add_argument("--winrate-mode", default="lc", choices=["plain", "lc"],
                     help="alpaca_eval utility: length-controlled (lc, default) or plain winrate")
+    ap.add_argument("--alpaca-reference", default="strong", choices=["strong", "baseline"],
+                    help="alpaca_eval recovery reference: 'strong' = the strong model's own "
+                         "outputs (recovery=1.0 is parity with strong; default), 'baseline' = "
+                         "the dataset GPT-4-turbo reference answers")
     ap.add_argument("--eval-size", type=int, default=50)
     ap.add_argument("--max-seconds", type=int, default=25200)   # ~7h
     ap.add_argument("--r-bar", type=float, default=0.98)
@@ -222,24 +229,45 @@ def main():
         print(f"[search] judge: {judge.model} @ {judge.base_url}  "
               f"winrate_mode={args.winrate_mode}", flush=True)
 
-    # --- baselines (free-running strong, per the design spec) ---
+    # --- reference + baselines ---
+    # For alpaca_eval with --alpaca-reference strong (default) the recovery reference is the
+    # STRONG model's OWN free-running outputs: recovery=1.0 == parity with the strong model
+    # (U_strong := 0.5 by definition; we never judge strong-vs-itself). Otherwise (math, or
+    # alpaca 'baseline' mode) the reference is the dataset gold/reference answers.
     print("[search] measuring baselines...", flush=True)
+    strong_ref_mode = (bench == "alpaca_eval" and args.alpaca_reference == "strong")
     try:
-        weak_base = run_one(weak, strong, instrs, golds, bench,
-                            {"idea": "weak_only", "params": {}, "span_max": 256},
-                            judge=judge, winrate_mode=args.winrate_mode)
-        strong_base = run_one(weak, strong, instrs, golds, bench,
-                              {"idea": "strong_only", "params": {}, "span_max": 1024,
-                               "span_stop": None}, judge=judge, winrate_mode=args.winrate_mode)
+        if strong_ref_mode:
+            print("[search] generating strong-only reference outputs...", flush=True)
+            strong_ref = run_one(weak, strong, instrs, golds, bench,
+                                 {"idea": "strong_only", "params": {}, "span_max": 1024,
+                                  "span_stop": None})              # judge=None: generation only
+            ref_texts = strong_ref["_generations"]
+            weak_base = run_one(weak, strong, instrs, ref_texts, bench,
+                                {"idea": "weak_only", "params": {}, "span_max": 256},
+                                judge=judge, winrate_mode=args.winrate_mode)
+            strong_base = None
+            uw, us = weak_base["utility"], 0.5                     # strong vs itself == parity
+        else:
+            ref_texts = golds
+            weak_base = run_one(weak, strong, instrs, ref_texts, bench,
+                                {"idea": "weak_only", "params": {}, "span_max": 256},
+                                judge=judge, winrate_mode=args.winrate_mode)
+            strong_base = run_one(weak, strong, instrs, ref_texts, bench,
+                                  {"idea": "strong_only", "params": {}, "span_max": 1024,
+                                   "span_stop": None}, judge=judge, winrate_mode=args.winrate_mode)
+            uw, us = weak_base["utility"], strong_base["utility"]
     except Exception as e:               # baselines are essential -> fail loud, don't run on garbage
         print(f"[search] FATAL: baseline measurement failed: {e!r}", flush=True)
         raise
-    uw, us = weak_base["utility"], strong_base["utility"]
     gap = us - uw
     baselines = {"benchmark": bench, "n": len(exs), "u_weak": uw, "u_strong": us,
-                 "gap": gap, "r_bar": args.r_bar, "winrate_mode": args.winrate_mode}
+                 "gap": gap, "r_bar": args.r_bar, "winrate_mode": args.winrate_mode,
+                 "reference": ("strong_only" if strong_ref_mode else "dataset_gold")}
     # keep both winrate flavors + raw judge records for the baselines too (reproducibility)
     for label, b in (("weak_only", weak_base), ("strong_only", strong_base)):
+        if b is None:
+            continue
         for k in ("winrate_plain", "winrate_lc"):
             if k in b:
                 baselines[f"{label}_{k}"] = b[k]
@@ -306,7 +334,7 @@ def main():
 
     def safe_run(spec, phase):
         try:
-            m = run_one(weak, strong, instrs, golds, bench, spec,
+            m = run_one(weak, strong, instrs, ref_texts, bench, spec,
                         judge=judge, winrate_mode=args.winrate_mode)
             return record(spec, m, phase)
         except Exception as e:           # never let one config kill the search

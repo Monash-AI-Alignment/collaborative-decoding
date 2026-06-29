@@ -25,6 +25,16 @@ def test_run_one_alpaca_uses_lc_winrate():
     assert len(m["_judge_per_example"]) == 1
 
 
+def test_run_one_alpaca_judge_none_is_generation_only():
+    # judge=None -> produce generations WITHOUT scoring (used to make the strong reference)
+    weak, strong = _weak(), FakeStrongModel([])
+    spec = {"idea": "weak_only", "params": {}, "span_max": 64}
+    m = policy_search.run_one(weak, strong, ["say hi"], ["ref"], "alpaca_eval", spec, judge=None)
+    assert m["utility"] is None
+    assert m["_generations"] == ["hello "]   # 2nd weak step is EOS -> not appended
+    assert "winrate_lc" not in m and "_judge_per_example" not in m
+
+
 def test_run_one_math_unchanged():
     weak = FakeWeakModel([
         WeakStep(top_token_id=5, text_piece="#### 7", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=False),
