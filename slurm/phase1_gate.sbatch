@@ -45,36 +45,9 @@ nvidia-smi -L || true
 $PY scripts/smoke_weak_model.py
 $PY scripts/smoke_strong_model.py
 
-echo "===== Gate 1a: baselines (strong_only free-running for clean U_strong) ====="
-$PY -m w2s_research.decode_cli --idea weak_only   --benchmark "$BENCH" --eval-size "$EVAL_SIZE" --out "$OUT/weak_only.json"
-$PY -m w2s_research.decode_cli --idea strong_only --benchmark "$BENCH" --eval-size "$EVAL_SIZE" --span-stop none --span-max-tokens 1024 --out "$OUT/strong_only.json"
-
-echo "===== Gate 1b: entropy-threshold frontier (span-level handoff) ====="
-for T in 0.3 0.6 1.0 1.5 2.0; do
-  $PY -m w2s_research.decode_cli --idea entropy_threshold --benchmark "$BENCH" --eval-size "$EVAL_SIZE" --tau "$T" --out "$OUT/entropy_tau_${T}.json"
-done
-
-echo "===== SUMMARY (Gate 1a/1b) ====="
-$PY - "$OUT" <<'PY'
-import json, sys, glob, os
-out = sys.argv[1]
-load = lambda p: json.load(open(p))
-def util(name):
-    p = os.path.join(out, name)
-    return load(p)["utility"] if os.path.exists(p) else None
-uw, us = util("weak_only.json"), util("strong_only.json")
-print(f"U_weak   = {uw}")
-print(f"U_strong = {us}")
-gap = (us - uw) if (uw is not None and us is not None) else None
-if gap is not None:
-    print(f"gap (U_strong - U_weak) = {gap:.4f}   <-- GATE 1a: want this clearly positive (~0.4+ on GSM8K)")
-print("\ntau\tutility\tf_weak\tutility_recovery")
-for p in sorted(glob.glob(os.path.join(out, "entropy_tau_*.json")), key=lambda x: float(x.split('entropy_tau_')[1][:-5])):
-    d = load(p); tau = p.split("entropy_tau_")[1][:-5]
-    rec = ((d["utility"] - uw) / gap) if (gap and gap > 0) else float("nan")
-    print(f"{tau}\t{d['utility']:.4f}\t{d['weak_token_fraction']:.4f}\t{rec:.4f}")
-print("\nGATE 1b: f_weak should rise and utility_recovery should fall as tau grows,")
-print("with intermediate points BETWEEN the two baselines (coherent collaborative text).")
-PY
+echo "===== Gate 1a/1b (single model load via run_gate.py) ====="
+# Loads weak+strong ONCE and runs weak_only / strong_only(free-running) / entropy sweep,
+# printing the U_weak/U_strong/frontier summary. Much faster than per-policy decode_cli.
+$PY scripts/run_gate.py --benchmark "$BENCH" --eval-size "$EVAL_SIZE" --out "$OUT"
 echo ""
 echo "Results JSON in: $OUT"
