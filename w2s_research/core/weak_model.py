@@ -1,9 +1,17 @@
 """White-box weak model adapter (HuggingFace Transformers).
 
-Exposes per-step next-token uncertainty by running a forward pass and reading the
-final-position logits. Chat-templates the (instruction, assistant_text) using the
-weak model's OWN tokenizer with assistant-continuation, so it composes with a
-different-tokenizer strong model at the text level.
+Stateful greedy decoder that maintains its OWN token-id sequence (like
+model.generate), so the weak model's continuation is faithful. We deliberately
+do NOT reconstruct the context from text on every step: that round-trip through
+the chat template strips trailing whitespace and corrupts generation (the model
+degenerates into endless newlines). The text round-trip happens ONLY at a defer
+handback (`resync`), which re-encodes the accumulated assistant text via raw
+tokenization (no whitespace-stripping template) — preserving cross-tokenizer
+composition with the strong model while keeping weak generation faithful.
+
+Note: `peek` runs a full forward over the current context each step (O(N) per
+step, O(N^2) per example). Correct but not fast; a KV-cache incremental forward
+is the obvious next optimization.
 """
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -24,33 +32,43 @@ class HFWeakModel:
             model_name, dtype=_DTYPES[dtype],
         ).to(device).eval()
         self.eos_token_id = self.tokenizer.eos_token_id
+        self._ids = None  # [1, T] tensor: the current context token ids
 
-    def _build_ids(self, instruction: str, assistant_text: str):
-        messages = [{"role": "user", "content": instruction}]
-        if assistant_text:
-            messages.append({"role": "assistant", "content": assistant_text})
-            ids = self.tokenizer.apply_chat_template(
-                messages, tokenize=True, continue_final_message=True,
-                add_generation_prompt=False, return_tensors="pt",
-            )
-        else:
-            ids = self.tokenizer.apply_chat_template(
-                messages, tokenize=True, add_generation_prompt=True, return_tensors="pt",
-            )
-        # transformers>=5 returns a BatchEncoding from apply_chat_template(tokenize=True);
-        # older versions return a bare tensor. Normalise to the input_ids tensor.
-        if not torch.is_tensor(ids):
+    def _prefix_ids(self, instruction: str):
+        """Chat-templated user turn + assistant generation prompt (no assistant content)."""
+        ids = self.tokenizer.apply_chat_template(
+            [{"role": "user", "content": instruction}],
+            tokenize=True, add_generation_prompt=True, return_tensors="pt",
+        )
+        if not torch.is_tensor(ids):          # transformers>=5 returns a BatchEncoding
             ids = ids["input_ids"]
-        return ids[:, -self.max_model_len:].to(self.device)
+        return ids.to(self.device)
+
+    def begin(self, instruction: str) -> None:
+        self._ids = self._prefix_ids(instruction)[:, -self.max_model_len:]
+
+    def commit(self, token_id: int) -> None:
+        tok = torch.tensor([[int(token_id)]], device=self.device)
+        self._ids = torch.cat([self._ids, tok], dim=1)[:, -self.max_model_len:]
+
+    def resync(self, instruction: str, assistant_text: str) -> None:
+        prefix = self._prefix_ids(instruction)
+        if assistant_text:
+            # raw tokenize (NO chat template) so trailing whitespace is preserved
+            cont = self.tokenizer(
+                assistant_text, add_special_tokens=False, return_tensors="pt",
+            ).input_ids.to(self.device)
+            ids = torch.cat([prefix, cont], dim=1)
+        else:
+            ids = prefix
+        self._ids = ids[:, -self.max_model_len:]
 
     @torch.no_grad()
-    def next_step(self, instruction: str, assistant_text: str) -> WeakStep:
-        ids = self._build_ids(instruction, assistant_text)
-        logits = self.model(ids).logits[0, -1, :].float()
+    def peek(self) -> WeakStep:
+        logits = self.model(self._ids).logits[0, -1, :].float()
         probs = torch.softmax(logits, dim=-1)
         top_id = int(probs.argmax().item())
 
-        # entropy in nats and top1-top2 margin, computed in torch then summarised
         ent = float(-(probs * torch.log(probs.clamp_min(1e-12))).sum().item())
         top2 = torch.topk(probs, k=min(2, probs.numel()))
         top1_prob = float(top2.values[0].item())
@@ -60,10 +78,10 @@ class HFWeakModel:
         if is_eos:
             text_piece = ""
         else:
-            # marginal text contributed by this token, robust to BPE leading spaces:
-            prev = self.tokenizer.decode(ids[0], skip_special_tokens=True)
+            # marginal text contributed by this token, robust to BPE leading spaces
+            prev = self.tokenizer.decode(self._ids[0], skip_special_tokens=True)
             after = self.tokenizer.decode(
-                torch.cat([ids[0], torch.tensor([top_id], device=self.device)]),
+                torch.cat([self._ids[0], torch.tensor([top_id], device=self.device)]),
                 skip_special_tokens=True,
             )
             text_piece = after[len(prev):]

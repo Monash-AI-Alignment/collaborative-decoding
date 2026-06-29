@@ -9,17 +9,22 @@ FIX = Path(__file__).parent / "fixtures"
 
 
 class CycleWeak:
-    """A weak model that always emits the correct gsm8k answer then EOS, per example."""
+    """Stateful weak fake: emits '#### <answer>' once per example, then EOS."""
     def __init__(self, answer):
         self.answer = answer
-        self._n = 0
-    def next_step(self, instruction, assistant_text):
-        # emit "#### <answer>" in one piece, then EOS
-        if assistant_text == "":
+        self._emitted = False
+    def begin(self, instruction):
+        self._emitted = False
+    def peek(self):
+        if not self._emitted:
             return WeakStep(top_token_id=1, text_piece=f"#### {self.answer}",
                             entropy=0.0, top1_prob=1.0, margin=1.0, is_eos=False)
         return WeakStep(top_token_id=-1, text_piece="", entropy=0.0,
                         top1_prob=1.0, margin=1.0, is_eos=True)
+    def commit(self, token_id):
+        self._emitted = True
+    def resync(self, instruction, assistant_text):
+        self._emitted = True
 
 
 def test_run_decode_weak_only_perfect(monkeypatch):

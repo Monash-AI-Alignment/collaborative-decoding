@@ -21,8 +21,28 @@ class WeakStep:
 
 @runtime_checkable
 class WeakModel(Protocol):
-    def next_step(self, instruction: str, assistant_text: str) -> WeakStep:
-        """Return the greedy next-token summary given (instruction, assistant_text)."""
+    """Stateful greedy decoder.
+
+    The engine drives it as: begin(instruction) -> [peek(); commit(id)]* with
+    resync(...) after any strong-model span. The weak model maintains its OWN
+    token sequence across CONTINUE steps (so generation is faithful, like
+    model.generate); only resync re-encodes from text (for the cross-tokenizer
+    handback). It never reconstructs the context from text per step.
+    """
+    def begin(self, instruction: str) -> None:
+        """Start a fresh generation; set the context to the prompt for `instruction`."""
+        ...
+
+    def peek(self) -> WeakStep:
+        """Greedy next-token summary for the current context (does NOT advance)."""
+        ...
+
+    def commit(self, token_id: int) -> None:
+        """Advance the context by accepting `token_id` (the token peek() proposed)."""
+        ...
+
+    def resync(self, instruction: str, assistant_text: str) -> None:
+        """Re-encode the context from text after a strong-model span (defer handback)."""
         ...
 
 

@@ -3,18 +3,30 @@ from w2s_research.core.interfaces import WeakStep, StrongOutput
 
 
 class FakeWeakModel:
-    """Replays a scripted list of WeakStep; once exhausted, returns EOS."""
+    """Stateful fake: replays a scripted list of WeakStep.
+
+    peek() returns the current step without advancing; commit() advances to the
+    next; resync() also advances (the step that triggered a defer is consumed).
+    Once exhausted, peek() returns an EOS step.
+    """
     def __init__(self, steps):
         self._steps = list(steps)
         self._i = 0
 
-    def next_step(self, instruction, assistant_text):
+    def begin(self, instruction):
+        self._i = 0
+
+    def peek(self):
         if self._i >= len(self._steps):
             return WeakStep(top_token_id=-1, text_piece="", entropy=0.0,
                             top1_prob=1.0, margin=1.0, is_eos=True)
-        step = self._steps[self._i]
+        return self._steps[self._i]
+
+    def commit(self, token_id):
         self._i += 1
-        return step
+
+    def resync(self, instruction, assistant_text):
+        self._i += 1
 
 
 class FakeStrongModel:

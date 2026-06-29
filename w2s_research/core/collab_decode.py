@@ -47,8 +47,9 @@ class CollaborativeDecoder:
         weak_chars = strong_chars = num_weak_steps = num_defers = 0
         finished = False
 
+        self.weak.begin(instruction)
         for _ in range(cfg.max_steps):
-            step = self.weak.next_step(instruction, assistant)
+            step = self.weak.peek()
             state = WeakStepState(
                 step_index=num_weak_steps,
                 entropy=step.entropy,
@@ -61,6 +62,7 @@ class CollaborativeDecoder:
                 if step.is_eos:
                     finished = True
                     break
+                self.weak.commit(step.top_token_id)
                 assistant += step.text_piece
                 weak_chars += len(step.text_piece)
                 num_weak_steps += 1
@@ -79,6 +81,8 @@ class CollaborativeDecoder:
                 if out.text == "":          # no progress (stall) -> stop; NOT a successful finish
                     finished = False
                     break
+                # hand back to the weak model: re-encode the post-span context
+                self.weak.resync(instruction, assistant)
 
             if len(assistant) >= cfg.max_chars:
                 break

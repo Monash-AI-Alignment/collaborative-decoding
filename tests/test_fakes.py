@@ -2,20 +2,34 @@ from w2s_research.core.interfaces import WeakStep, StrongOutput
 from tests.fakes import FakeWeakModel, FakeStrongModel
 
 
-def test_fake_weak_emits_scripted_steps():
-    weak = FakeWeakModel(steps=[
+def _two_steps():
+    return [
         WeakStep(top_token_id=1, text_piece="2", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=False),
         WeakStep(top_token_id=2, text_piece=" + 2", entropy=2.0, top1_prob=0.3, margin=0.05, is_eos=False),
-    ])
-    s0 = weak.next_step("inst", "")
-    assert s0.text_piece == "2" and s0.entropy == 0.1
-    s1 = weak.next_step("inst", "2")
-    assert s1.text_piece == " + 2" and s1.entropy == 2.0
+    ]
+
+
+def test_fake_weak_peek_commit_advances():
+    weak = FakeWeakModel(steps=_two_steps())
+    weak.begin("inst")
+    assert weak.peek().text_piece == "2"      # peek does not advance
+    assert weak.peek().text_piece == "2"
+    weak.commit(1)                            # commit advances
+    assert weak.peek().text_piece == " + 2" and weak.peek().entropy == 2.0
+
+
+def test_fake_weak_resync_consumes_deferred_step():
+    weak = FakeWeakModel(steps=_two_steps())
+    weak.begin("inst")
+    assert weak.peek().text_piece == "2"      # the step we defer on
+    weak.resync("inst", "strong span")        # defer consumes it
+    assert weak.peek().text_piece == " + 2"
 
 
 def test_fake_weak_runs_out_returns_eos():
     weak = FakeWeakModel(steps=[])
-    step = weak.next_step("inst", "")
+    weak.begin("inst")
+    step = weak.peek()
     assert step.is_eos is True
     assert step.text_piece == ""
 
