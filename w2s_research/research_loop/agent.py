@@ -85,6 +85,8 @@ def resolve_prompt(template_path: str | Path, output_path: str | Path) -> str:
         aar_mode=str(AAR_MODE).lower(),
         local_mode=str(local_mode).lower(),
         target_idea_content=target_idea_content,
+        benchmark=os.getenv("BENCHMARK", "alpaca_eval"),
+        r_bar=os.getenv("R_BAR", "0.98"),
     )
 
     with open(output_path, 'w') as f:
