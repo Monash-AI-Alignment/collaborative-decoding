@@ -55,7 +55,7 @@ Run your idea against the canonical reference and read the metric triple:
 python -m w2s_research.core.eval_idea_cli --idea autonomous_<name> --benchmark {{ benchmark }} --eval-size 60
 ```
 
-This prints `{utility, weak_token_fraction, utility_recovery}`. **Each run loads the models (~5 min)** — to compare several variants in one model-load, sweep them with `scripts/policy_search.py`. Iterate at a modest `--eval-size`; **`recovery` near the bar is noisy at small n** — confirm a promising policy at a larger size before claiming it.
+This prints `{utility, weak_token_fraction, utility_recovery}` scored against the **canonical** reference/baselines. **Each run loads the models (~5 min)** — to compare several variants in one model-load, sweep them with `scripts/policy_search.py`. Note that `policy_search` measures its *own* per-run baselines (not the canonical ones), so always **re-confirm a shortlisted policy with `eval_idea_cli`** (the canonical anchor the leaderboard uses) before `evaluate_generations`/`share_finding`. Iterate at a modest `--eval-size`; **`recovery` near the bar is noisy at small n** — confirm a promising policy at a larger size before claiming it.
 
 ## TOOLS
 

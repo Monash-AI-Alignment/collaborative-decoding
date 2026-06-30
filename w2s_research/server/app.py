@@ -7,6 +7,7 @@ web_ui/backend/app.py is unused (dormant). Run:
 import os
 from flask import Flask, request, jsonify
 from w2s_research.server.store import Store
+from w2s_research.server.finding_payload import build_share_payload
 
 
 def create_app(db_path=None):
@@ -33,17 +34,34 @@ def create_app(db_path=None):
     @app.post("/api/evaluate-generations")
     def evaluate_generations():
         d = request.get_json(force=True)
+        if not isinstance(d, dict) or not d.get("benchmark") or d.get("utility") is None:
+            return jsonify({"error": "benchmark and utility are required"}), 400
         b = store.get_baseline(d["benchmark"])
         if not b:
             return jsonify({"error": "no baseline for benchmark"}), 404
         gap = b["gap"]
-        rec = (d["utility"] - b["u_weak"]) / gap if gap > 0 else None
+        rec = (d["utility"] - b["u_weak"]) / gap if (gap and gap > 0) else None
         return jsonify({"utility_recovery": rec, "gap": gap,
                         "meets_bar": rec is not None and rec >= b["r_bar"]})
 
     @app.post("/api/findings/share")
     def share_finding():
-        return jsonify(store.add_finding(request.get_json(force=True)))
+        d = request.get_json(force=True)
+        if not isinstance(d, dict):
+            return jsonify({"error": "expected a JSON object"}), 400
+        payload, err = build_share_payload(d)
+        if err:
+            return jsonify({"error": err}), 400
+        # Trust engine-measured utility/f_weak, but compute recovery SERVER-SIDE from the
+        # canonical baseline so the leaderboard gate can't be set by the submitted value.
+        if payload.get("finding_type", "result") == "result":
+            b = store.get_baseline(payload.get("benchmark"))
+            if not b:
+                return jsonify({"error": "no baseline for benchmark; cannot publish a result"}), 400
+            gap, u = b["gap"], payload.get("utility")
+            payload["utility_recovery"] = (
+                (u - b["u_weak"]) / gap if (gap and gap > 0 and u is not None) else None)
+        return jsonify(store.add_finding(payload))
 
     @app.get("/api/findings")
     def get_findings():

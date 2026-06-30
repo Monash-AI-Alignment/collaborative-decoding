@@ -15,9 +15,11 @@ import json
 def main():
     ap = argparse.ArgumentParser(description="Evaluate one idea vs the canonical reference")
     ap.add_argument("--idea", required=True, help="idea dir name under w2s_research/ideas/")
-    ap.add_argument("--benchmark", default="alpaca_eval", choices=["alpaca_eval", "gsm8k", "math"])
+    # Only alpaca_eval has a canonical artifact for the POC (bootstrap_baselines builds it).
+    ap.add_argument("--benchmark", default="alpaca_eval", choices=["alpaca_eval"])
     ap.add_argument("--eval-size", type=int, default=60)
-    ap.add_argument("--winrate-mode", default="lc", choices=["plain", "lc"])
+    ap.add_argument("--winrate-mode", default=None, choices=["plain", "lc"],
+                    help="override the canonical artifact's winrate mode (default: use the artifact's)")
     ap.add_argument("--out", default=None, help="optional path to write the full result JSON")
     args = ap.parse_args()
 

@@ -1,4 +1,5 @@
 """Configuration for collaborative-decoding experiments (inference only)."""
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -10,9 +11,11 @@ class DecodeConfig:
     split: str = "test"
     eval_size: Optional[int] = None   # None = full split
 
-    # Models
-    weak_model: str = "meta-llama/Llama-3.2-1B-Instruct"
-    strong_model: str = "Qwen/Qwen2.5-7B-Instruct"
+    # Models (env-overridable so the engine, prompt, and canonical baselines agree)
+    weak_model: str = field(
+        default_factory=lambda: os.getenv("WEAK_MODEL", "meta-llama/Llama-3.2-1B-Instruct"))
+    strong_model: str = field(
+        default_factory=lambda: os.getenv("STRONG_MODEL", "Qwen/Qwen2.5-7B-Instruct"))
 
     # Engine limits
     max_steps: int = 768              # max weak-token steps per example

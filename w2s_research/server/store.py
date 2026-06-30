@@ -10,6 +10,15 @@ import time
 import uuid
 
 
+def _row_to_dict(r):
+    """Row/dict -> dict with the JSON columns parsed back to structured values."""
+    d = dict(r)
+    for k in ("operating_points", "config"):
+        if k in d:
+            d[k] = json.loads(d[k]) if d[k] else None
+    return d
+
+
 class Store:
     def __init__(self, db_path):
         self.db_path = db_path
@@ -56,7 +65,7 @@ class Store:
             c.execute("""INSERT INTO findings VALUES
                 (:post_id,:created_at,:benchmark,:idea_name,:finding_type,:title,:summary,
                  :utility,:weak_token_fraction,:utility_recovery,:operating_points,:config,:worked)""", row)
-        return row
+        return _row_to_dict(row)
 
     def list_findings(self, benchmark=None, finding_type=None, limit=100):
         q, args = "SELECT * FROM findings WHERE 1=1", []
@@ -69,7 +78,7 @@ class Store:
         q += " ORDER BY created_at DESC LIMIT ?"
         args.append(limit)
         with self._conn() as c:
-            return [dict(r) for r in c.execute(q, args).fetchall()]
+            return [_row_to_dict(r) for r in c.execute(q, args).fetchall()]
 
     def leaderboard(self, benchmark, r_bar=None):
         base = self.get_baseline(benchmark)

@@ -15,7 +15,12 @@ _DEFAULT_BASELINES_DIR = os.environ.get(
 
 def load_canonical(benchmark, baselines_dir=None):
     d = baselines_dir or _DEFAULT_BASELINES_DIR
-    with open(os.path.join(d, f"{benchmark}.json")) as f:
+    path = os.path.join(d, f"{benchmark}.json")
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f"No canonical baseline artifact at {path}. Run "
+            f"`scripts/bootstrap_baselines.py --benchmark {benchmark}` on a GPU node first.")
+    with open(path) as f:
         return json.load(f)
 
 
@@ -24,6 +29,9 @@ def recovery_of(u, u_weak, gap):
 
 
 def score_generations(benchmark, generations, canonical, judge=None, winrate_mode="lc"):
+    # The canonical artifact's winrate_mode is authoritative: u_weak/gap were measured in
+    # that mode, so utility must use the same flavor or recovery mixes incompatible scales.
+    winrate_mode = canonical.get("winrate_mode") or winrate_mode
     refs = canonical["reference_texts"][:len(generations)]
     uw, gap = canonical["u_weak"], canonical["gap"]
     out = {}
