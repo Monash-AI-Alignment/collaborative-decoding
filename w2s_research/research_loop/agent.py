@@ -42,9 +42,7 @@ from w2s_research.config import (
     SERVER_URL,
     AAR_MODE,
 )
-from .tools.server_api_tools import create_server_api_tools_server
-from .tools.prior_work_tools import create_prior_work_tools_server
-from .tools.findings_sync import FindingsSync
+from .stop_checker import StopReason, _StopChecker
 
 
 # ---------------------------------------------------------------------------
@@ -96,39 +94,6 @@ def resolve_prompt(template_path: str | Path, output_path: str | Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Stop condition (just timeout)
-# ---------------------------------------------------------------------------
-
-class StopReason(Enum):
-    TIMEOUT = "timeout"
-    USER_INTERRUPT = "user_interrupt"
-
-
-class _StopChecker:
-    """Simple timeout-only stop checker."""
-
-    def __init__(self, max_runtime: float):
-        self.max_runtime = max_runtime
-        self.start_time = time.time()
-        self.consecutive_errors = 0
-
-    @property
-    def elapsed_time(self) -> float:
-        return time.time() - self.start_time
-
-    def check(self) -> Optional[StopReason]:
-        if self.elapsed_time >= self.max_runtime:
-            return StopReason.TIMEOUT
-        return None
-
-    def record_success(self):
-        self.consecutive_errors = 0
-
-    def record_error(self):
-        self.consecutive_errors += 1
-
-
-# ---------------------------------------------------------------------------
 # Agent result
 # ---------------------------------------------------------------------------
 
@@ -154,7 +119,7 @@ class BaseAgent:
         allowed_tools: List[str],
         workspace: Path,
         mcp_servers: Dict[str, Any],
-        model: str = "claude-opus-4-6",
+        model: str = "claude-opus-4-8",
         permission_mode: str = "bypassPermissions",
         cli_path: Optional[str] = None,
         message_callback: Optional[Callable] = None,
@@ -284,7 +249,7 @@ class AutonomousAgentLoop:
         max_runtime_seconds: Optional[int] = None,
         logs_dir: Optional[Path] = None,
         s3_bucket: Optional[str] = None,
-        model: str = "claude-opus-4-6",
+        model: str = "claude-opus-4-8",
         local_mode: bool = False,
     ):
         if not idea_uid:
@@ -307,25 +272,17 @@ class AutonomousAgentLoop:
 
         self.stop_checker = _StopChecker(max_runtime=self.max_runtime_seconds)
 
-        # Create MCP servers (server API tools always needed — in local mode, server runs on localhost)
+        # Create MCP servers: collaborative-decoding API tools (baselines/evaluate/share/leaderboard)
+        from .tools.collab_api_tools import create_collab_api_tools_server
         self.mcp_servers = {}
         try:
-            self.mcp_servers["server-api-tools"] = create_server_api_tools_server()
+            self.mcp_servers["collab-api-tools"] = create_collab_api_tools_server()
         except Exception as e:
-            print(f"[Init] Warning: server API tools unavailable: {e}")
-        if not local_mode:
-            try:
-                self.mcp_servers["prior-work-tools"] = create_prior_work_tools_server()
-            except Exception as e:
-                print(f"[Init] Warning: prior work tools unavailable: {e}")
+            print(f"[Init] Warning: collab API tools unavailable: {e}")
 
-        # Findings sync: disabled in local mode (no other workers)
+        # The forum is read via the collab-api MCP tools (get_leaderboard / get_findings),
+        # so no separate filesystem findings-sync thread is needed.
         self.findings_sync = None
-        if not local_mode:
-            self.findings_sync = FindingsSync(
-                findings_dir=Path(LOCAL_FINDINGS_DIR),
-                poll_interval=FINDINGS_POLL_INTERVAL,
-            )
 
         self.session_count = 0
         self._prompt: Optional[str] = None
@@ -343,12 +300,11 @@ class AutonomousAgentLoop:
         allowed_tools = [
             "Read", "Write", "Edit", "Bash", "Glob", "Grep",
             "WebSearch", "WebFetch",
-            "mcp__server-api-tools__evaluate_predictions",
-            "mcp__server-api-tools__share_finding",
-            "mcp__server-api-tools__get_leaderboard",
+            "mcp__collab-api-tools__get_baselines",
+            "mcp__collab-api-tools__get_leaderboard",
+            "mcp__collab-api-tools__evaluate_generations",
+            "mcp__collab-api-tools__share_finding",
         ]
-        if not self.local_mode:
-            allowed_tools.append("mcp__prior-work-tools__download_snapshot")
 
         return BaseAgent(
             name=f"autonomous-{session_id}",
