@@ -5,17 +5,22 @@ logits or token ids are returned, enforcing the black-box constraint. Applies th
 strong model's OWN chat template with assistant-continuation so it composes with a
 different-tokenizer weak model at the text level.
 """
+import os
 from typing import List, Optional
 
 from vllm import LLM, SamplingParams
 
 from .interfaces import StrongOutput
+from .timeout_guard import timeout
 
 
 class VLLMStrongModel:
     def __init__(self, model_name: str, gpu_memory_utilization: float = 0.6,
                  max_model_len: int = 4096):
         self.model_name = model_name
+        # Fail-fast if a single generation hangs (e.g. the vLLM engine core died and the
+        # client blocks forever). Generous default (~50x a normal call); override via env.
+        self.gen_timeout = int(os.environ.get("STRONG_GEN_TIMEOUT", "300"))
         self.llm = LLM(
             model=model_name,
             max_model_len=max_model_len,
@@ -46,7 +51,9 @@ class VLLMStrongModel:
             stop=stop,
             include_stop_str_in_output=True,   # keep the "\n" so assistant_text stays well-formed
         )
-        out = self.llm.generate([prompt], params)[0].outputs[0]
+        with timeout(self.gen_timeout,
+                     "strong-model generation timed out — vLLM engine may have died"):
+            out = self.llm.generate([prompt], params)[0].outputs[0]
         # finished on EOS only when vLLM stopped without matching a stop string and not on length
         finished = (out.finish_reason == "stop") and (out.stop_reason is None)
         return StrongOutput(text=out.text, finished=finished)
