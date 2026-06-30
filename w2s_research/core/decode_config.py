@@ -15,8 +15,8 @@ class DecodeConfig:
     strong_model: str = "Qwen/Qwen2.5-7B-Instruct"
 
     # Engine limits
-    max_steps: int = 512              # max weak-token steps per example
-    max_chars: int = 4000             # hard cap on assistant_text length per example
+    max_steps: int = 768              # max weak-token steps per example
+    max_chars: int = 6000             # hard cap on assistant_text length per example
 
     # Strong-model span generation
     span_stop: Optional[List[str]] = field(default_factory=lambda: ["\n"])
