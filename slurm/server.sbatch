@@ -14,11 +14,11 @@
 #SBATCH --error=slurm-%x-%j.err
 set -euo pipefail
 
-REPO="${W2S_REPO:-/fs04/ml23/smur0075/automated-w2s-research}"
+REPO="${W2S_REPO:-/fs04/ax74/smur0075/automated-w2s-research}"
 export W2S_SERVER_DB="${W2S_SERVER_DB:-/scratch2/ml23/smur0075/w2s_decode_runs/server.db}"
 export PORT="${PORT:-8000}"
 
 cd "$REPO"
 echo "[server] node=$(hostname) port=$PORT db=$W2S_SERVER_DB"
 echo "[server] -> set on agents:  export ORCHESTRATOR_API_URL=http://$(hostname):$PORT"
-PYTHONPATH="$REPO" ~/venvs/w2s-decode/bin/python -m w2s_research.server.app
+PYTHONPATH="$REPO" "$REPO/.venv/bin/python" -m w2s_research.server.app

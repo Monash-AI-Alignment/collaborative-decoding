@@ -44,7 +44,7 @@ dependencies = [
     "wandb==0.23.0",
     # Agent
     "anthropic>=0.78.0",
-    "claude_agent_sdk>=0.1.30",
+    "claude-agent-sdk>=0.1.30",
     # Server
     "flask>=3.1.2",
     "flask-cors>=4.0.0",
