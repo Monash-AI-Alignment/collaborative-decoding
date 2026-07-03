@@ -1,3 +1,5 @@
+import os
+
 from w2s_research.core.policy import Decision, DeferralPolicy
 
 IDEA_NAME = "margin_threshold"
@@ -12,4 +14,8 @@ class MarginThreshold(DeferralPolicy):
 
 
 def build_policy(config):
-    return MarginThreshold(tau=getattr(config, "margin_threshold", 0.10))
+    # Env overrides let eval_idea reproduce the policy_search winner (tau=0.05, span 64)
+    # without a code edit; defaults match the original curated-sweep behavior.
+    config.span_max_tokens = int(os.getenv("SPAN_MAX_TOKENS", str(config.span_max_tokens)))
+    tau = float(os.getenv("MARGIN_TAU", str(getattr(config, "margin_threshold", 0.10))))
+    return MarginThreshold(tau=tau)
