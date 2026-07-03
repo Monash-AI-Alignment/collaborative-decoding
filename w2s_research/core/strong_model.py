@@ -11,6 +11,7 @@ from typing import List, Optional
 from vllm import LLM, SamplingParams
 
 from .interfaces import StrongOutput
+from .span_heal import heal_span_to_token_boundary
 from .timeout_guard import timeout
 
 
@@ -54,6 +55,14 @@ class VLLMStrongModel:
         with timeout(self.gen_timeout,
                      "strong-model generation timed out — vLLM engine may have died"):
             out = self.llm.generate([prompt], params)[0].outputs[0]
+        text = out.text
+        if out.stop_reason is not None:
+            # The stop-string match can land inside a multi-char token (':\n\n' is one
+            # Qwen token) — extend to the token boundary so the assistant text stays on
+            # the model's own tokenization path across span handoffs.
+            text = heal_span_to_token_boundary(
+                text, out.token_ids,
+                lambda ids: self.tokenizer.decode(ids, skip_special_tokens=True))
         # finished on EOS only when vLLM stopped without matching a stop string and not on length
         finished = (out.finish_reason == "stop") and (out.stop_reason is None)
-        return StrongOutput(text=out.text, finished=finished)
+        return StrongOutput(text=text, finished=finished)
