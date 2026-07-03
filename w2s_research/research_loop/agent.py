@@ -304,6 +304,7 @@ class AutonomousAgentLoop:
             "WebSearch", "WebFetch",
             "mcp__collab-api-tools__get_baselines",
             "mcp__collab-api-tools__get_leaderboard",
+            "mcp__collab-api-tools__get_findings",
             "mcp__collab-api-tools__evaluate_generations",
             "mcp__collab-api-tools__share_finding",
         ]

@@ -45,7 +45,7 @@ def build_policy(config):
     return MyPolicy()   # read params via getattr(config, "<name>", default)
 ```
 
-`WeakStepState` gives you **only** scalars + the text so far (`step_index, entropy, top1_prob, margin, top_token_id, text_so_far`) — no raw logits leak past the white/black-box line. Stateful policies must self-reset when `state.text_so_far == ""` (a new example). Study the shipped policies in `{{ workspace_dir }}/w2s_research/ideas/` — especially **`margin_threshold`** (defer when top-2 margin is tiny) and **`budget_entropy`** (cap defers per example), the current open-ended winners (`f_weak ≈ 0.44` at parity), and `context_gate` (wins on math).
+`WeakStepState` gives you **only** scalars + the text so far (`step_index, entropy, top1_prob, margin, top_token_id, text_so_far`) — no raw logits leak past the white/black-box line. Stateful policies must self-reset when `state.text_so_far == ""` (a new example). Study the shipped policies in `{{ workspace_dir }}/w2s_research/ideas/` — especially **`margin_threshold`** (defer when top-2 margin is tiny) and **`budget_entropy`** (cap defers per example), the best seeds from an earlier n=20 sweep, and `context_gate` (wins on math). IMPORTANT calibration: against the canonical n=100 reference, the best seed (`margin_threshold` tau=0.05, span 64) measures **f_weak 0.455 at recovery 0.55** (n=60) — the n=20 "parity" reading was selection-inflated. Check `get_leaderboard` for the measured state of the art; **no known policy currently meets the r_bar={{ r_bar }} bar at high f_weak — that is the open problem you are attacking.**
 
 ## HOW TO EVALUATE
 
@@ -61,6 +61,7 @@ This prints `{utility, weak_token_fraction, utility_recovery}` scored against th
 
 - `get_baselines(benchmark)` — the canonical `U_weak / U_strong / gap / r_bar`.
 - `get_leaderboard(benchmark)` — result findings with `recovery ≥ r_bar`, ranked by `f_weak`.
+- `get_findings(benchmark, finding_type?)` — ALL shared findings (incl. sub-bar results, hypotheses, errors). The leaderboard is empty until something meets the bar — this is where the actual research trail lives.
 - `evaluate_generations(benchmark, idea_name, utility, weak_token_fraction)` — get `recovery` + whether it meets the bar.
 - `share_finding(benchmark, idea_name, summary, title, finding_type, ...)` — post to the forum. `finding_type='result'` requires `utility`, `weak_token_fraction`, `utility_recovery` and **publishes to the leaderboard**. Other types: `hypothesis`, `insight`, `error`.
 
@@ -71,7 +72,7 @@ This prints `{utility, weak_token_fraction, utility_recovery}` scored against th
 
 ## WORKFLOW (each session)
 
-0. **Review** — read `notebook.json`, call `get_leaderboard`, read the shipped + leaderboard ideas.
+0. **Review** — read `notebook.json`, call `get_leaderboard` AND `get_findings` (other agents' sub-bar results and failures), read the shipped + leaderboard ideas.
 1. **Propose** a concrete deferral policy (check the notebook to avoid repeats); update `current_idea`.
 2. **Implement** it under `ideas/autonomous_<name>/`.
 3. **Run** `eval_idea_cli` (or `policy_search` for a sweep).

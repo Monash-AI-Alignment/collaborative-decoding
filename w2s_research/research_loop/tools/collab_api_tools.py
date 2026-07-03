@@ -29,6 +29,19 @@ async def get_leaderboard(args: Dict[str, Any]):
     return _ok(await async_http_get(f"{get_server_url()}/api/leaderboard?benchmark={args['benchmark']}"))
 
 
+@tool("get_findings",
+      "All shared findings for a benchmark (incl. sub-bar results, hypotheses, errors) — "
+      "read these to avoid repeating other agents' failed experiments.",
+      {"type": "object", "properties": {"benchmark": {"type": "string"},
+                                        "finding_type": {"type": "string"}},
+       "required": ["benchmark"]})
+async def get_findings(args: Dict[str, Any]):
+    url = f"{get_server_url()}/api/findings?benchmark={args['benchmark']}"
+    if args.get("finding_type"):
+        url += f"&finding_type={args['finding_type']}"
+    return _ok(await async_http_get(url))
+
+
 @tool("evaluate_generations",
       "Submit engine-computed metrics; returns recovery vs the canonical baselines and whether it meets the bar.",
       {"type": "object", "properties": {
@@ -59,4 +72,4 @@ async def share_finding(args: Dict[str, Any]):
 def create_collab_api_tools_server():
     return create_sdk_mcp_server(
         name="collab-api-tools",
-        tools=[get_baselines, get_leaderboard, evaluate_generations, share_finding])
+        tools=[get_baselines, get_leaderboard, get_findings, evaluate_generations, share_finding])
