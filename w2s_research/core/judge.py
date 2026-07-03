@@ -17,7 +17,31 @@ import time
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 
-DEFAULT_JUDGE_URL = os.environ.get("JUDGE_URL", "http://m3u006:8001/v1")
+def _resolve_judge_url():
+    """JUDGE_URL env wins; else the always-on endpoint registry (~/bin/vllm-endpoint).
+
+    The judge's SLURM job rolls between nodes, so a hardcoded node:port goes stale.
+    The registry pointer is advisory (health is checked on first real request); for a
+    blocking, health-checked resolve use `~/bin/vllm-endpoint gemma4 --wait`.
+    """
+    url = os.environ.get("JUDGE_URL")
+    if url:
+        return url
+    registry = os.path.join(
+        os.environ.get("VLLM_REGISTRY_DIR", os.path.expanduser("~/vllm-registry")),
+        "gemma4.json",
+    )
+    try:
+        with open(registry) as fh:
+            data = json.load(fh)
+        if data.get("state") == "serving" and data.get("api_base"):
+            return data["api_base"]
+    except (OSError, ValueError):
+        pass
+    return "http://localhost:8001/v1"  # inert last resort: run `~/bin/vllm-endpoint gemma4 --wait`
+
+
+DEFAULT_JUDGE_URL = _resolve_judge_url()
 DEFAULT_JUDGE_MODEL = os.environ.get("JUDGE_MODEL", "google/gemma-4-31B-it")
 
 _PAIRWISE_PROMPT = """You are comparing two AI assistant responses to an instruction.

@@ -23,7 +23,13 @@ REPO="${W2S_REPO:-/fs04/ml23/smur0075/automated-w2s-research}"
 
 export HF_HOME=/scratch2/ml23/smur0075/hf_cache
 export HF_HUB_ENABLE_HF_TRANSFER=1
-export JUDGE_URL="${JUDGE_URL:-http://m3u006:8001/v1}"
+# The judge endpoint moves nodes when its always-on server job rolls — resolve it from
+# the registry at job start (blocks through a handoff) instead of baking in a node:port.
+# Plain assignment (not `export VAR=$(...)`) so set -e aborts if resolution fails.
+if [ -z "${JUDGE_URL:-}" ]; then
+  JUDGE_URL="$("$HOME/bin/vllm-endpoint" gemma4 --wait)"
+fi
+export JUDGE_URL
 export BENCHMARK="${BENCHMARK:-alpaca_eval}"
 export R_BAR="${R_BAR:-0.98}"
 export WEAK_MODEL="${WEAK_MODEL:-meta-llama/Llama-3.2-1B-Instruct}"
