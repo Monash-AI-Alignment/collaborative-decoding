@@ -1,0 +1,58 @@
+{
+ "baseline": {
+  "benchmark": "alpaca_eval",
+  "gap": 0.334,
+  "r_bar": 0.98,
+  "reference_path": "/x",
+  "u_strong": 0.5,
+  "u_weak": 0.166
+ },
+ "benchmark": "alpaca_eval",
+ "counts": {
+  "findings": 1,
+  "ideas": 1,
+  "results": 1
+ },
+ "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783172281.2012277,
+   "finding_type": "result",
+   "idea_name": "margin",
+   "operating_points": null,
+   "post_id": "f2a6ac2635ff426b823b79ddae24e609",
+   "summary": "x <script>alert(1)</script> y",
+   "title": "the title",
+   "utility": 0.5,
+   "utility_recovery": 0.9999999999999999,
+   "weak_token_fraction": 0.44,
+   "worked": 0
+  }
+ ],
+ "leaderboard": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783172281.2012277,
+   "finding_type": "result",
+   "idea_name": "margin",
+   "operating_points": null,
+   "post_id": "f2a6ac2635ff426b823b79ddae24e609",
+   "summary": "x <script>alert(1)</script> y",
+   "title": "the title",
+   "utility": 0.5,
+   "utility_recovery": 0.9999999999999999,
+   "weak_token_fraction": 0.44,
+   "worked": 0
+  }
+ ],
+ "r_bar": 0.98,
+ "sota_history": [
+  {
+   "f_weak": 0.44,
+   "idea": "margin",
+   "t": 1783172281.2012277
+  }
+ ]
+}

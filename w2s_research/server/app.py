@@ -10,14 +10,25 @@ import time
 from flask import Flask, request, jsonify
 from markupsafe import escape
 
+from w2s_research.server.site_data import write_site_data
 from w2s_research.server.store import Store
 from w2s_research.server.finding_payload import build_share_payload
 
 
-def create_app(db_path=None):
+def create_app(db_path=None, site_data_path=None):
     app = Flask(__name__)
     store = Store(db_path or os.environ.get(
         "W2S_SERVER_DB", "/scratch2/ml23/smur0075/w2s_decode_runs/server.db"))
+    benchmark_default = os.environ.get("BENCHMARK", "alpaca_eval")
+
+    def sync_site(benchmark=None):
+        # Site logging must never break the research API.
+        try:
+            write_site_data(store, site_data_path, benchmark or benchmark_default)
+        except Exception as e:                                    # noqa: BLE001
+            app.logger.warning("site_data write failed: %r", e)
+
+    sync_site()   # backfill on startup so the file always reflects the DB
 
     @app.get("/api/health")
     def health():
@@ -67,6 +78,7 @@ r_bar={fmt(base.get('r_bar'), 2)} · {len(findings)} findings · auto-refreshes 
         d = request.get_json(force=True)
         store.set_baseline(d["benchmark"], d["u_weak"], d["u_strong"], d["gap"],
                            d.get("r_bar", 0.98), d.get("reference_path", ""))
+        sync_site(d["benchmark"])
         return jsonify({"ok": True})
 
     @app.get("/api/baselines")
@@ -104,7 +116,9 @@ r_bar={fmt(base.get('r_bar'), 2)} · {len(findings)} findings · auto-refreshes 
             gap, u = b["gap"], payload.get("utility")
             payload["utility_recovery"] = (
                 (u - b["u_weak"]) / gap if (gap and gap > 0 and u is not None) else None)
-        return jsonify(store.add_finding(payload))
+        out = store.add_finding(payload)
+        sync_site(payload.get("benchmark"))
+        return jsonify(out)
 
     @app.get("/api/findings")
     def get_findings():
