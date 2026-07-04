@@ -60,3 +60,19 @@ def test_share_recomputes_recovery_server_side(tmp_path):
     lb = c.get("/api/leaderboard?benchmark=alpaca_eval").get_json()
     assert len(lb["entries"]) == 1
     assert abs(lb["entries"][0]["utility_recovery"] - (0.5 - 0.166) / 0.334) < 1e-9   # not 99.0
+
+
+def test_forum_html_view(tmp_path):
+    c = _client(tmp_path)
+    c.post("/api/baselines", json={"benchmark": "alpaca_eval", "u_weak": 0.166,
+           "u_strong": 0.5, "gap": 0.334, "r_bar": 0.98, "reference_path": "/x"})
+    c.post("/api/findings/share", json={"benchmark": "alpaca_eval", "idea_name": "margin",
+           "finding_type": "result", "utility": 0.5, "weak_token_fraction": 0.44,
+           "utility_recovery": 1.0, "summary": "x <script>alert(1)</script> y",
+           "title": "the title"})
+    r = c.get("/?benchmark=alpaca_eval")
+    html = r.get_data(as_text=True)
+    assert r.status_code == 200
+    assert "Leaderboard" in html and "margin" in html and "the title" in html
+    assert "<script>alert" not in html      # user content must be escaped
+    assert "&lt;script&gt;alert" in html
