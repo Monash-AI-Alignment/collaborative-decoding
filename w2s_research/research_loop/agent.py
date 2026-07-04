@@ -108,6 +108,21 @@ class AgentResult:
     error: Optional[str] = None
 
 
+def validate_session_result(result: "AgentResult") -> None:
+    """Raise if the session failed OR did no work (zero tool uses).
+
+    A rate-limited CLI exits "successfully" in ~2s with only a limit notice and
+    zero tool calls; counting that as success spun ~4550 no-op sessions in job
+    58089426. Raising routes it through the stop checker, so
+    MAX_CONSECUTIVE_ERRORS consecutive no-ops stop the loop and free the GPU.
+    """
+    if not result.success:
+        raise RuntimeError(f"Agent failed: {result.error}")
+    if result.iteration_count == 0:
+        raise RuntimeError(
+            "Session did no work (0 tool uses) — likely a usage/session limit")
+
+
 # ---------------------------------------------------------------------------
 # Base agent (wraps Claude Agent SDK)
 # ---------------------------------------------------------------------------
@@ -432,8 +447,7 @@ class AutonomousAgentLoop:
                 if result.error:
                     log_f.write(f"# Error: {result.error}\n")
 
-                if not result.success:
-                    raise RuntimeError(f"Agent failed: {result.error}")
+                validate_session_result(result)
 
             except Exception as e:
                 log_f.write(f"\n# ERROR: {e}\n{traceback.format_exc()}")
@@ -444,6 +458,8 @@ class AutonomousAgentLoop:
         print(f"[Session {self.session_count}] Completed")
 
     async def _sync_to_s3(self):
+        if not self.s3_bucket:
+            return
         try:
             from w2s_research.infrastructure.s3_utils import upload_file_to_s3
         except ImportError:
