@@ -44,6 +44,7 @@ h2 { font-size: 1.15rem; margin: 2.4rem 0 .8rem; }
 figure { margin: 0; }
 figcaption { font-size: .8rem; color: var(--ink-3); margin-top: .5rem; }
 svg text { font-family: inherit; }
+svg text.halo { paint-order: stroke; stroke: var(--surface-1); stroke-width: 3px; stroke-linejoin: round; }
 .legend { display: flex; gap: 1.2rem; font-size: .8rem; color: var(--ink-2); margin: .4rem 0 0; flex-wrap: wrap; }
 .legend .k { display: inline-flex; align-items: center; gap: .4rem; }
 .legend .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
@@ -254,7 +255,7 @@ function renderFrontier(d) {
   for (const [fx, fy, name] of [[0, 1, "strong only"], [1, 0, "weak only"]]) {
     svg.append(el("circle", { cx: X(fx), cy: Y(fy), r: 5, fill: "none", stroke: css("--ink-3"), "stroke-width": 1.5 }));
     svg.append(el("text", { x: X(fx) + (fx === 0 ? 10 : -10), y: Y(fy) + 4, "font-size": 11, fill: css("--ink-3"),
-                            "text-anchor": fx === 0 ? "start" : "end", text: name }));
+                            class: "halo", "text-anchor": fx === 0 ? "start" : "end", text: name }));
   }
   const results = d.findings.filter((f) => f.finding_type === "result" &&
     f.weak_token_fraction != null && f.utility_recovery != null);
@@ -266,7 +267,7 @@ function renderFrontier(d) {
     svg.append(el("circle", { cx, cy, r: 6, fill: color, stroke: css("--surface-1"), "stroke-width": 2 }));
     if (f.post_id === bestId)
       svg.append(el("text", { x: cx, y: cy - 14, "text-anchor": "middle", "font-size": 11.5,
-                              "font-weight": 600, fill: css("--ink-1"),
+                              "font-weight": 600, fill: css("--ink-1"), class: "halo",
                               text: f.idea_name.replace("autonomous_", "") + "  " + pct(f.weak_token_fraction) }));
     const hit = el("circle", { cx, cy, r: 14, fill: "transparent", tabindex: 0, role: "img",
       "aria-label": `${f.idea_name}: f_weak ${pct(f.weak_token_fraction)}, recovery ${fmt(f.utility_recovery)}` });
@@ -301,10 +302,12 @@ function renderSota(d) {
   if (!pts.length) { box.replaceChildren(el("p", { text: "No certified policy yet." })); return; }
   const t0 = pts[0].t - 3600, t1 = Date.now() / 1000;
   const X = (t) => m.l + ((t - t0) / Math.max(t1 - t0, 1)) * (W - m.l - m.r);
-  const Y = (v) => H - m.b - (v / 0.6) * (H - m.b - m.t);
+  // axis max follows the data so a future SOTA never renders outside the viewBox
+  const yTop = Math.max(0.6, Math.ceil((Math.max(...pts.map((p) => p.f_weak)) + 0.05) / 0.2) * 0.2);
+  const Y = (v) => H - m.b - (Math.min(v, yTop) / yTop) * (H - m.b - m.t);
   const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img",
                           "aria-label": "Best certified weak-token fraction over time" });
-  for (const v of axisTicks(0, 0.6, 0.2)) {
+  for (const v of axisTicks(0, yTop, 0.2)) {
     svg.append(el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: css("--grid"), "stroke-width": 1 }));
     svg.append(el("text", { x: m.l - 8, y: Y(v) + 4, "text-anchor": "end", "font-size": 11, fill: css("--ink-3"), text: pct(v, 0) }));
   }
@@ -330,7 +333,10 @@ function renderSota(d) {
     svg.append(hit);
   }
   const last = pts[pts.length - 1];
-  svg.append(el("text", { x: X(last.t) + 10, y: Y(last.f_weak) - 10, "font-size": 11.5, "font-weight": 600,
+  const nearRight = X(last.t) > W - m.r - 70;   // fresh certification sits at the right edge
+  svg.append(el("text", { x: X(last.t) + (nearRight ? -10 : 10), y: Y(last.f_weak) - 10,
+                          "text-anchor": nearRight ? "end" : "start", class: "halo",
+                          "font-size": 11.5, "font-weight": 600,
                           fill: css("--ink-1"), text: pct(last.f_weak) }));
   svg.append(el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: css("--axis"), "stroke-width": 1 }));
   svg.append(el("text", { x: m.l, y: H - 8, "font-size": 11, fill: css("--ink-3"),
@@ -374,7 +380,8 @@ function renderFeed(d) {
     const div = el("div", { class: "finding" });
     const meta = el("div", { class: "meta" });
     meta.append(el("span", { class: "chip " + (f.finding_type === "result" ? "result" : ""), text: f.finding_type }),
-                el("span", { text: f.idea_name }), el("span", { text: age(f.created_at) }));
+                el("span", { text: f.idea_name }), el("span", { text: age(f.created_at) }),
+                el("span", { text: new Date(f.created_at * 1000).toLocaleString() }));
     div.append(meta, el("div", { class: "title", text: f.title || "(untitled)" }));
     if (f.utility != null)
       div.append(el("div", { class: "metrics",
