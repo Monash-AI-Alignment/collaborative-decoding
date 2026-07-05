@@ -1,0 +1,11 @@
+// Cloudflare Workers static-assets config for the public research site.
+// Lives in docs/ so Cloudflare's Git build can use "docs" as its Root directory
+// — that keeps the build from seeing the repo-root pyproject.toml/uv.lock and
+// trying to install the entire GPU/ML stack. Deploy command: npx wrangler deploy
+{
+  "name": "collab-decoding",
+  "compatibility_date": "2026-07-01",
+  "assets": {
+    "directory": "./"
+  }
+}
