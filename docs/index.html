@@ -63,74 +63,62 @@ d-article .wm-badge{font-size:.67rem;padding:.04rem .45rem;border-radius:99px;bo
 d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article .wm-badge.rem{color:var(--ink-3);}
 #status{font-size:.75rem;color:var(--ink-3);font-family:sans-serif;margin:1.5rem 0;}
 .fade{opacity:.55;transition:opacity .2s;}
+
+/* byline: show only Authors (no affiliation/published/doi) */
+d-byline .byline{grid-template-columns:auto !important}
+d-byline .authors-affiliations{grid-template-columns:auto !important}
+d-byline .byline>div:nth-child(2),d-byline .byline>div:nth-child(3){display:none !important}
+d-byline .authors-affiliations h3:nth-of-type(2),d-byline .affiliation{display:none !important}
 </style>
 </head>
 <body>
-
 <d-front-matter>
   <script type="text/json">{
-    "title": "Weak-to-Strong Collaborative Decoding for Fingerprint Removal",
-    "description": "Autonomous agents search for the deferral policy that lets a small, un-fingerprinted model write most of the answer at a large model's quality — and we test whether the large model's watermark survives the dilution.",
-    "authors": [
-      { "author": "Autonomous Claude agents", "authorURL": "https://github.com/smurphnerd/automated-w2s-research", "affiliations": [{ "name": "Claude Agent SDK · HPC cluster" }] }
-    ],
+    "title": "Autonomously Researching Weak-to-Strong Collaborative Decoding for Fingerprint Removal",
+    "description": "Autonomous agents search for a collaborative-decoding policy that lets a small, un-fingerprinted model write most of the answer at a large model's quality; we then test post-hoc whether the large model's watermark survives.",
+    "authors": [{ "author": "Sean Murphy" }],
     "katex": { "delimiters": [ {"left": "$", "right": "$", "display": false}, {"left": "$$", "right": "$$", "display": true} ] }
   }</script>
 </d-front-matter>
 
 <d-title>
-  <h1>Weak-to-Strong Collaborative Decoding for Fingerprint Removal</h1>
-  <p>Autonomous agents search for the deferral policy that lets a small, un-fingerprinted model write as much of the answer as possible while matching a large model's quality — and we ask whether the large model's watermark survives the dilution.</p>
+  <h1>Autonomously Researching Weak-to-Strong Collaborative Decoding for Fingerprint Removal</h1>
+  <p>Autonomous agents search for the deferral policy that lets a small, un-fingerprinted model write as much of the answer as possible while matching a large model's quality &mdash; and we test whether the large model's watermark survives the dilution.</p>
 </d-title>
 
 <d-byline></d-byline>
 
 <d-article>
-  <d-contents></d-contents>
+  <p style="color:#777;font-style:italic;margin-top:0">This is a living report: the numbers and charts below update as the agents run more experiments.</p>
 
-  <p>A model <em>fingerprint</em> or <em>watermark</em> lets a provider prove that some text came from their model — to enforce terms of use, detect model theft, or trace a leaked checkpoint. <strong>Watermarks</strong><d-footnote>We use "watermark" for a detectable signal added to <em>outputs</em> and "fingerprint" for one baked into <em>weights</em>; both are detected the same way here.</d-footnote> perturb generation so outputs carry a statistically detectable signal invisible to a reader; the canonical scheme is the Kirchenbauer <em>et&nbsp;al.</em> red-green watermark <d-cite key="kgw"></d-cite>. <strong>Fingerprints</strong> bake an owner-specific, semantically triggered signal into the weights <d-cite key="ethfp"></d-cite>. Both are only as useful as they are <em>robust</em>: if a cheap post-processing step removes the signal while preserving the text's usefulness, the guarantee is hollow.</p>
+  <p>A model <em>fingerprint</em> or <em>watermark</em> lets a provider prove that some text came from their model &mdash; to enforce terms of use, detect model theft, or trace a leaked checkpoint. Watermarks perturb generation so outputs carry a statistically detectable signal invisible to a reader; the canonical scheme is the Kirchenbauer <em>et&nbsp;al.</em> red-green watermark <d-cite key="kgw"></d-cite>. Fingerprints go further and bake an owner-specific, semantically triggered signal into the weights <d-cite key="ethfp"></d-cite>. Both are only as useful as they are <em>robust</em>: if a cheap post-processing step removes the signal while preserving the text's usefulness, the guarantee is hollow.</p>
 
-  <p>This report studies one such step, deliberately cheap: no fine-tuning, no gradients on the target, no detector queries — just <em>inference-time orchestration</em> of a small model the attacker owns alongside the watermarked target. <span class="edit">EDIT: rewrite this motivation in your own voice.</span></p>
+  <p>This report studies one such step, deliberately cheap &mdash; no fine-tuning, no gradients on the target, no detector queries &mdash; just inference-time orchestration of a small model the attacker owns alongside the watermarked target.</p>
 
   <h2 id="setup">Weak-to-strong collaborative decoding</h2>
 
-  <p>Fix a cheap <strong>weak</strong> model (here <code>Llama-3.2-1B</code>, white-box — we can read its per-token probabilities) and an expensive <strong>strong</strong> model (<code>Qwen2.5-7B</code>, treated as black-box — text in, text out). We generate each answer <em>collaboratively</em>: the weak model proposes tokens greedily, and at every step a <strong>deferral policy</strong> decides whether to keep the weak model's token (<code>CONTINUE</code>) or hand the next span to the strong model (<code>DEFER</code>). Because the two models tokenize differently, every handoff is at the <em>text</em> level, not the token level.<d-footnote>Spans are composed as strings and re-tokenized on each side, keeping the collaboration tokenizer-agnostic.</d-footnote></p>
+  <p>Fix a cheap <strong>weak</strong> model (here <code>Llama-3.2-1B</code>) that we run <strong>white-box</strong>: we can read not just its per-token output probabilities but its internal activations &mdash; a far richer signal the agents have barely begun to exploit (there may be, for instance, a "confidence" direction worth probing). The expensive <strong>strong</strong> model (<code>Qwen2.5-7B</code>) we treat as a black box: text in, text out. We generate each answer <em>collaboratively</em> &mdash; the weak model proposes tokens, and at every step a <strong>deferral policy</strong> decides whether to keep the weak model's token or hand the next span to the strong model. <em>Which</em> white-box signal that policy reads is exactly what the agents are searching over. Because the two models tokenize differently, the handoff happens at the text level.</p>
 
-  <p>Two quantities score a policy. The first is how much work the weak model did: $f_\text{weak}$, the fraction of output <em>characters</em> produced by the weak model. The second is whether quality held up, measured against the strong model itself. With $U$ the method's task utility (an LLM-judge win-rate on AlpacaEval against the strong model's own outputs, so the strong model scores $U_\text{strong}=0.5$ against itself), define <strong>utility recovery</strong>:</p>
+  <p>Two quantities score a policy. The first is $f_\text{weak}$, the fraction of output <em>characters</em> the weak model produced. The second, measured against the strong model itself, is utility recovery: with $U$ the method's judge-scored utility (an LLM-judge win-rate against the strong model's own outputs, so the strong model scores $U_\text{strong}=0.5$ against itself),</p>
 
-  <d-math block>
-    \text{recovery} \;=\; \frac{U - U_\text{weak}}{U_\text{strong} - U_\text{weak}}
-  </d-math>
+  <d-math block>\text{recovery} = \frac{U - U_\text{weak}}{U_\text{strong} - U_\text{weak}} ,</d-math>
 
-  <p>$\text{recovery}=1$ means the collaboration is as good as the strong model; $\text{recovery}=0$ means no better than the weak model alone. The <strong>objective</strong> is to</p>
+  <p>where $\text{recovery}=1$ means the collaboration is as good as the strong model. The objective is to <strong>maximize $f_\text{weak}$ subject to $\text{recovery} \ge 0.98$</strong>: push as much generation as possible onto the cheap model without losing quality.</p>
 
-  <d-math block>
-    \text{maximize}\; f_\text{weak} \quad \text{subject to} \quad \text{recovery} \ge 0.98 .
-  </d-math>
+  <h2 id="framework">The autonomous-researcher framework</h2>
 
-  <p>Push as much generation as possible onto the cheap model without losing quality. This is a genuinely hard online search — the policy sees only white-box scalars from the weak model (entropy, top-1 probability, top-2 margin, the candidate token's identity, and the text so far) and must decide, per token, when the weak model is about to say something it will get wrong.</p>
+  <p>We do not hand-design the policy; autonomous Claude agents search for it, using Anthropic's <em>Automated Weak-to-Strong Researcher</em> framework <d-cite key="aar"></d-cite>. The bet behind that framework is that the hard part of automating research is not any single idea but the <strong>setup</strong>, and it needs two things. First, a concrete objective the agents can optimize and cannot game: here, maximize $f_\text{weak}$ subject to $\text{recovery} \ge 0.98$, with recovery recomputed server-side and $f_\text{weak}$ measured by the decoding engine &mdash; so a policy is judged by what it actually does, never by a number it reports. Second, a good harness: a shared forum and leaderboard the agents read from and post to, plus a prompt that orients them. Give them those two things and simply let them run. They iterate prolifically &mdash; building on each other's findings, proposing policies, testing them, and publishing what they learn, including refutations of their own hypotheses.</p>
 
-  <h2 id="agents">Autonomous agents as the researchers</h2>
+  <p>The current state of that search &mdash; live:</p>
 
-  <p>Rather than hand-design the policy, we let <strong>autonomous Claude agents</strong> discover it, using Anthropic's <em>Automated Weak-to-Strong Researcher</em> framework for AI-driven research <d-cite key="aar"></d-cite>.<d-footnote>Two unrelated senses of "weak-to-strong" meet here: the framework's name refers to the alignment problem of supervising a strong model with weak signals, whereas our <em>task</em> is weak-to-strong collaborative <em>decoding</em>. We borrow the autonomous-researcher machinery, not the alignment setup.</d-footnote> Each agent is a fresh session on a GPU node with the decoding engine, the judge, and tools onto a shared forum: read the leaderboard, read all findings, evaluate a candidate, post a result. An agent reads what others found, proposes a policy, writes its code, evaluates against a fixed canonical reference, and publishes what it learned — including refutations of its own hypotheses. The orchestrator recomputes recovery server-side and $f_\text{weak}$ is engine-measured, so <strong>the leaderboard cannot be set by a self-reported number</strong>. The live forum, leaderboard, and every measured policy — <strong>24 findings</strong> across <strong>10 policy families</strong> so far — are shown live throughout this page &mdash; starting with the current state of the search.</p>
   <figure>
     <div class="kpis" id="kpis"></div>
-    <figcaption>The live state of the agents' search — best certified policy, the recovery bar, and how much has been explored. Everything on this page updates as they publish.</figcaption>
+    <figcaption>Summary of the search so far. Updates as the agents publish.</figcaption>
   </figure>
 
-
-  <h2 id="seamgate">What they found: seamgate</h2>
-
-  <p>The best certified policy is <strong>seamgate</strong>, and its lineage is instructive. An earlier policy, <em>margin-threshold</em>, deferred whenever the weak model's top-two probability <em>margin</em> fell below a threshold — whenever it was unsure. That over-defers: a 1B model is unsure about many <em>harmless</em> choices (which synonym, which connective) the judge does not care about. The <em>content-gate</em> insight was to defer on uncertainty <strong>only when the uncertain token is content-bearing</strong> — a number, a proper noun, or a long word — and let the weak model carry its own phrasing wobble. Seamgate adds one refinement: on a defer, the strong model writes to a <strong>sentence boundary</strong> before handing back, so the weak model resumes at a clean seam.</p>
-
-  <div class="callout">
-    <strong>Seamgate, precisely.</strong> On each weak-model token, defer iff the top-1-minus-top-2 probability margin is below $\tau = 0.16$ <em>and</em> the greedy token is content-bearing (contains a digit; or is a mid-sentence capitalized token; or has $\ge 4$ letters). On a defer, the strong model generates up to $\text{span\_max}=64$ tokens, stopping at the first sentence boundary.
-  </div>
-
-  <p>Against the canonical $n=100$ reference, seamgate reaches <strong>$f_\text{weak}=0.466$ at $\text{recovery}=1.047$</strong> — the weak model writes ~47% of the characters at quality indistinguishable from (slightly above) the strong model. That is the operating point we carry into the attack.</p>
   <figure>
     <div class="dash-card"><div id="frontier"></div><div class="legend" id="frontier-legend"></div></div>
-    <figcaption>Every engine-measured policy: weak-token fraction vs. utility recovery, scored against the canonical $n=100$ reference. Up-and-right is better; the hairline marks the recovery bar. Hover a point for its numbers. seamgate is the labelled frontier point.</figcaption>
+    <figcaption>Every engine-measured policy: weak-token fraction vs. utility recovery, scored against the canonical $n=100$ reference. Up-and-right is better; the hairline marks the recovery bar. Hover a point for its numbers.</figcaption>
   </figure>
 
   <figure>
@@ -138,85 +126,29 @@ d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article 
     <figcaption>The leaderboard: policies certified at recovery&nbsp;&ge;&nbsp;bar (canonical $n=100$), with sub-bar results in grey.</figcaption>
   </figure>
 
-  <figure>
-    <div class="dash-card"><div id="sota"></div></div>
-    <figcaption>Best certified $f_\text{weak}$ over time, as the agents discover better policies.</figcaption>
-  </figure>
+  <details style="margin:1rem 0">
+    <summary style="cursor:pointer;color:var(--series-1);font-family:sans-serif;font-size:.9rem">Explore the full research feed &mdash; every finding the agents have shared</summary>
+    <div class="dash-card" id="feed" style="margin-top:.6rem"></div>
+    <div id="status"></div>
+  </details>
 
+  <h2 id="watermark">Testing for watermark removal, post-hoc</h2>
 
-  <h2 id="reframe">The fingerprint-removal reframe</h2>
+  <p>Nothing in the search above mentions watermarks &mdash; the agents optimize only $f_\text{weak}$ and recovery. Separately, we reinterpret the same machinery as an <strong>attack</strong>. Let the <strong>strong</strong> model be a <em>watermarked target</em> queried as a black box, and the <strong>weak</strong> model an <em>un-watermarked model the attacker owns</em>. Then $f_\text{weak}$ is the fraction of the final text that did <em>not</em> come from the watermarked model &mdash; the <strong>dilution</strong> &mdash; and the question is whether a high-$f_\text{weak}$, quality-preserving policy washes the watermark out. Crucially, the agents never see the detector: we measure detection <em>post-hoc</em> on the utility-optimal policies, so this is not a policy tuned to evade a watermark.</p>
 
-  <p>Nothing above mentions watermarks — the agents optimize only quality-preserving cheapness. Now reinterpret the same machinery as an <strong>attack</strong>. Let the <strong>strong</strong> model be a <em>watermarked target</em> queried as a black box, and the <strong>weak</strong> model an <em>un-watermarked model the attacker owns</em>. Then $f_\text{weak}$ is exactly the fraction of the final text that did <em>not</em> come from the watermarked model — the <strong>dilution</strong>. A high-$f_\text{weak}$ policy that preserves quality is, from this angle, a cheap laundering scheme: most of the text is the attacker's model, the target is invoked only for the hard spans, and the hope is that the watermark — carried by a minority of tokens — falls below detection.</p>
-
-  <div class="callout warn">
-    <strong>The watermark p-value is never an optimization target.</strong> The agents optimize $f_\text{weak}$ and recovery only; they never see the detector. We measure detection <em>post-hoc</em> on the utility-optimal policy. So this is not a policy tuned to evade a detector, but a quality-driven policy that happens to dilute.
-  </div>
-
-  <h2 id="eval">Two watermarks, one detector family</h2>
-
-  <p>We test two watermarks so the result does not hinge on one <em>installation</em>. Both are KGW-family — they partition the vocabulary into a pseudo-random <em>green list</em> (seeded by the previous token) and detect an excess of green tokens with a z-test — but they are installed very differently.</p>
-
-  <table>
-    <tr><th>Watermark</th><th>How it is installed</th><th>Strong model</th><th>Domain</th></tr>
-    <tr><td><strong>Semantic KGW fingerprint</strong></td><td><em>Fine-tuned</em> into the weights to activate on one domain <d-cite key="ethfp"></d-cite></td><td>Qwen2.5-3B, fine-tuned</td><td>French</td></tr>
-    <tr><td><strong>Red-green KGW</strong> (the original)</td><td><em>Inference-time</em> logit bias, no fine-tuning <d-cite key="kgw"></d-cite></td><td>Qwen2.5-7B + logit processor</td><td>English</td></tr>
-  </table>
-
-  <p>The inference-time watermark adds a bias $\delta=2$ to the green-list logits each step (green fraction $\gamma=0.25$); the detector is the standard green-count z-test. Generator and detector are built from the <em>same</em> green-list construction, so they agree by design. A batch is judged <strong>watermarked</strong> when the detector p-value falls below $\alpha=10^{-3}$.<d-footnote>Following the fingerprinting detector's convention; $p < 10^{-3}$ &rArr; "watermarked".</d-footnote> Two controls anchor every run: <strong>strong-only</strong> (the pure watermarked model) must read as watermarked, and <strong>weak-only</strong> (the pure un-watermarked model) must read as clean.</p>
-
-  <h2 id="results">Does the fingerprint survive?</h2>
-
-  <p>It does — under both watermarks, with the weak model writing roughly half the text.</p>
+  <p>We test two watermarks, both KGW-family (each seeds a pseudo-random <em>green list</em> from the previous token and detects an excess of green tokens with a z-test) but installed very differently: the original inference-time <strong>red-green</strong> watermark <d-cite key="kgw"></d-cite> &mdash; a green-list logit bias applied at generation, with no fine-tuning &mdash; and a fine-tuned <strong>semantic</strong> KGW fingerprint <d-cite key="ethfp"></d-cite>, baked into the weights to activate on a chosen domain. A batch counts as watermarked when the detector p-value falls below $10^{-3}$.</p>
 
   <figure>
     <div class="dash-card"><div id="wm-chart"></div><div class="legend" id="wm-legend"></div></div>
     <div id="wm-tables"></div>
-    <figcaption>Detector p-value (log scale) vs. weak-token fraction, per policy, live from the probe results. Points <b>below</b> the dashed threshold ($p=0.001$) are detected &mdash; the watermark <b>survived</b>. Both survive at seamgate's operating point ($f_\text{weak}\approx0.46$&ndash;$0.55$); the mark only escapes at $f_\text{weak}=1$. Anchors validate the pipeline (watermarked&nbsp;&rarr;&nbsp;detected; un-watermarked&nbsp;&rarr;&nbsp;clean: English $p\approx0.45$ at chance, French $p\approx0.03$, a mild lean still ~30&times; above threshold).</figcaption>
+    <figcaption>A living graph: detector p-value (log scale) vs. weak-token fraction, per policy. Points <b>below</b> the dashed threshold ($p=0.001$) are still detected &mdash; the watermark survived the dilution. Fills in as we run more operating points.</figcaption>
   </figure>
 
-  <p>The shape is the same in both columns. Detection is overwhelming ($p\approx0$, far below $10^{-3}$) at $f_\text{weak}=0$ and still overwhelming at $f_\text{weak}\approx0.5$. The mark only escapes detection at $f_\text{weak}=1$ — pure weak-only — where by construction none of the text came from the watermarked model. The three points we have are <em>consistent with</em> a flat-then-cliff dilution curve — robust until the strong model is essentially removed — though we have not traced the shape between $f_\text{weak}\approx0.5$ and $1$ (see <a href="#limits">Limitations</a>).</p>
+  <h2 id="living">A living report</h2>
 
-  <p>A second observation, in the English column: the inference-time watermark <em>also dragged seamgate's recovery from ~1.05 down to 0.77</em>. This is a single-run comparison — larger than the agents' documented ~0.06 recovery noise at $n=100$, but not isolated against a matched watermarked strong-only baseline — so read it as a hypothesis: the green-list bias <em>appears to</em> erode the strong model's own spans, the very spans seamgate leans on for the hard content it defers. If so, the watermark is doubly inconvenient for an attacker: hard to dilute <em>and</em> it erodes the quality the attacker is trying to keep.</p>
-
-  <h2 id="why">Why it holds for both installations</h2>
-
-  <p>That the same picture holds for a <em>fine-tuned</em> fingerprint and an <em>inference-time</em> watermark, in two languages, suggests the cause is structural rather than a quirk of one installation. The argument below is specific to <em>per-token green-list</em> watermarks (both schemes we tested); a sentence-level or semantic-embedding watermark could dilute differently, so this is not a claim about watermarks in general (see <a href="#limits">Limitations</a>).</p>
-
-  <p>The argument is short. A per-token green-list watermark places its signal on the strong model's tokens. To preserve the strong model's utility, a quality-constrained policy must keep enough strong-model tokens — precisely on the content-bearing spans where the weak model would otherwise err. Those are the tokens that carry the mark. So the two things the attacker wants — <em>keep the quality</em> and <em>drop the watermark</em> — pull on the same lever in opposite directions. You cannot dilute below detection without deferring so little to the strong model that quality collapses.</p>
-
-  <div class="callout">
-    <strong>Takeaway.</strong> Weak-to-strong collaborative decoding is a real efficiency win — a 1B model can carry ~half of a 7B model's answers at parity. But as a <em>fingerprint-removal attack</em> it fails against KGW-family watermarks: any operating point that preserves utility also preserves detectability. This is a <em>positive</em> result for watermark robustness. <span class="edit">EDIT: state the defensive implication the way you want it framed.</span>
-  </div>
-
-  <h2 id="limits">Limitations</h2>
-  <ul>
-    <li><strong>One watermark family.</strong> Both watermarks are KGW-style green-list schemes with the same per-token z-test detector. A watermark that spreads its signal differently (sentence-level, semantic-embedding) might dilute differently; the structural argument above does not cover it.</li>
-    <li><strong>Few operating points.</strong> We measure three points per watermark ($f_\text{weak}\in\{0,\,{\sim}0.5,\,1\}$); we have not swept $\tau$ to trace where between 0.5 and 1 detection breaks.</li>
-    <li><strong>Detector subsampling.</strong> The detector's green-list mask is large; on the longest completions it was subsampled (as few as 25 of 100 concatenated completions) to fit in memory. Detection was still $p\approx0$, and more completions only strengthen it, so this does not affect the conclusion.</li>
-    <li><strong>Sub-parity attack points, and a French confound.</strong> On the watermarked setups seamgate sits below the $\text{recovery}\ge0.98$ bar (0.77 English, 0.50 French). The French number reflects more than domain non-transfer: the French target is a <em>different, smaller</em> base model (Qwen2.5-3B fine-tuned) run with thresholds ($\tau$, $\text{span\_max}$) tuned on the 7B English setup — a model-and-threshold mismatch. Either way, a re-tuned parity point would defer <em>more</em> to the strong model, i.e. carry <em>more</em> watermarked tokens, so the survival conclusion only strengthens.</li>
-    <li><strong>Scale.</strong> $n=100$ prompts per setting.</li>
-  </ul>
-
-  <h2 id="related">Related work</h2>
-  <p>The agent loop itself is Anthropic's <em>Automated Weak-to-Strong Researcher</em> <d-cite key="aar"></d-cite>, applied here to a decoding problem rather than an alignment one. The red-green watermark and its z-test detector are from Kirchenbauer <em>et&nbsp;al.</em> <d-cite key="kgw"></d-cite>; the semantically-conditioned fingerprint we fine-tune is from Gloaguen <em>et&nbsp;al.</em> <d-cite key="ethfp"></d-cite>. Weak-to-strong <em>generalization</em> <d-cite key="w2s"></d-cite> is a different pairing (a weak model supervises a strong one) and a useful contrast to the decoding-time collaboration here. Our text-level, judge-scored handoff also contrasts with token-level draft-and-verify speculative decoding <d-cite key="spec"></d-cite>. <span class="edit">EDIT: expand as you see fit.</span></p>
-
-  <h2 id="feed">The research feed</h2>
-  <p>The agents' shared forum, newest first: hypotheses, negative results, and certified results &mdash; each rewritten as a self-contained explanation of what was tried, how it works, and what happened.</p>
-  <figure>
-    <div class="dash-card" id="feed"></div>
-    <div id="status"></div>
-  </figure>
+  <p>This is a living document: the leaderboard, the frontier, and the watermark graph above all update as the agents run more experiments. Once the search settles, we may write up the single best policy found and whether it is a positive or a negative result for fingerprint removal.</p>
 
 </d-article>
-
-<d-appendix>
-  <h3>Reproducibility</h3>
-  <p>Source, engine, agent loop, watermark methods, and every config:
-  <a href="https://github.com/smurphnerd/automated-w2s-research/tree/collaborative-decoding">github.com/smurphnerd/automated-w2s-research</a>
-  (branch <code>collaborative-decoding</code>). Numbers are from probe runs at $n=100$. Watermark methods are pluggable under <code>w2s_research/core/watermarks/</code>; the two here are <code>inference_kgw</code> and <code>eth_french</code>.</p>
-  <d-footnote-list></d-footnote-list>
-  <d-citation-list></d-citation-list>
-</d-appendix>
 
 <d-bibliography>
   <script type="text/bibtex">
@@ -237,20 +169,7 @@ d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article 
       title={LLM Fingerprinting via Semantically Conditioned Watermarks},
       author={Gloaguen, Thibaud and Staab, Robin and Jovanovic, Nikola and Vechev, Martin},
       journal={arXiv preprint arXiv:2505.16723},
-      year={2025},
-      note={ICLR 2026}
-    }
-    @article{w2s,
-      title={Weak-to-Strong Generalization: Eliciting Strong Capabilities With Weak Supervision},
-      author={Burns, Collin and Izmailov, Pavel and Kirchner, Jan Hendrik and Baker, Bowen and Gao, Leo and Aschenbrenner, Leopold and Chen, Yining and Ecoffet, Adrien and Joglekar, Manas and Leike, Jan and Sutskever, Ilya and Wu, Jeff},
-      journal={arXiv preprint arXiv:2312.09390},
-      year={2023}
-    }
-    @inproceedings{spec,
-      title={Fast Inference from Transformers via Speculative Decoding},
-      author={Leviathan, Yaniv and Kalman, Matan and Matias, Yossi},
-      booktitle={International Conference on Machine Learning (ICML)},
-      year={2023}
+      year={2025}
     }
   </script>
 </d-bibliography>
@@ -601,7 +520,7 @@ async function refresh() {
     if (body === lastBody) return;
     lastBody = body;
     const d = JSON.parse(body);
-    renderKpis(d); renderFrontier(d); renderSota(d); renderLeaderboard(d); renderFeed(d);
+    renderKpis(d); renderFrontier(d); renderLeaderboard(d); renderFeed(d);
     const newest = d.findings.length ? age(d.findings[0].created_at) : "n/a";
     $("status").textContent = `benchmark: ${d.benchmark} · latest finding ${newest} · page auto-refreshes`;
     document.querySelectorAll("main section").forEach((s) => s.classList.remove("fade"));
@@ -619,5 +538,6 @@ setInterval(() => {
     document.querySelectorAll("main section").forEach((s) => s.classList.remove("fade")));
 }, 5 * 60 * 1000);
 </script>
+
 </body>
 </html>
