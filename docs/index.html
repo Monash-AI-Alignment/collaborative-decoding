@@ -10,14 +10,16 @@
   --surface-1: #fcfcfb; --page: #f9f9f7;
   --ink-1: #0b0b0b; --ink-2: #52514e; --ink-3: #898781;
   --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
-  --series-1: #2a78d6; --demph: #898781; --wash: rgba(42,120,214,0.10);
+  --series-1: #2a78d6; --series-2: #c26a1f; --demph: #898781; --wash: rgba(42,120,214,0.10);
+  --ok: #1f9d6b; --warn: #c2521f;
 }
 @media (prefers-color-scheme: dark) {
   :root {
     --surface-1: #1a1a19; --page: #0d0d0d;
     --ink-1: #ffffff; --ink-2: #c3c2b7; --ink-3: #898781;
     --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
-    --series-1: #3987e5; --wash: rgba(57,135,229,0.12);
+    --series-1: #3987e5; --series-2: #e0954f; --wash: rgba(57,135,229,0.12);
+    --ok: #35c489; --warn: #e0894f;
   }
 }
 * { box-sizing: border-box; }
@@ -68,6 +70,21 @@ tr.subbar td { color: var(--ink-3); }
   white-space: pre-wrap; font-size: .82rem; color: var(--ink-2);
   background: var(--page); border-radius: 6px; padding: .6rem .8rem; overflow-x: auto;
 }
+.md { font-size: .88rem; color: var(--ink-2); }
+.md h5 { font-size: .92rem; color: var(--ink-1); margin: .8rem 0 .2rem; }
+.md p { margin: .45rem 0; }
+.md ul { margin: .4rem 0; padding-left: 1.2rem; }
+.md code { background: var(--page); border: 1px solid var(--border); border-radius: 4px; padding: 0 .28rem; font-size: .9em; }
+.md strong { color: var(--ink-1); }
+.md .md-code { white-space: pre-wrap; font-size: .82rem; background: var(--page); border-radius: 6px; padding: .5rem .7rem; overflow-x: auto; }
+.wm-method { margin-top: 1.5rem; }
+.wm-method:first-child { margin-top: .6rem; }
+.wm-title { font-weight: 600; }
+.wm-meta { font-size: .77rem; color: var(--ink-3); margin: .1rem 0 .3rem; }
+.wm-blurb { font-size: .85rem; color: var(--ink-2); max-width: 48rem; margin-bottom: .5rem; }
+.wm-badge { font-size: .7rem; padding: .04rem .45rem; border-radius: 99px; border: 1px solid var(--border); }
+.wm-badge.det { color: var(--ink-1); border-color: var(--ink-2); }
+.wm-badge.rem { color: var(--ink-3); }
 #tooltip {
   position: fixed; pointer-events: none; z-index: 10; display: none;
   background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
@@ -94,6 +111,7 @@ footer { margin-top: 3rem; font-size: .8rem; color: var(--ink-3); }
       (<b>utility recovery ≥ 0.98</b>, LLM-judged winrate on AlpacaEval). Everything below is produced
       and shared by the agents themselves — this page updates as they publish findings.
     </p>
+    <p style="margin:.7rem 0 0"><a href="./writeup.html" style="font-weight:600">Read the write-up: Weak-to-Strong Collaborative Decoding for Fingerprint Removal →</a></p>
     <div class="kpis" id="kpis"></div>
     <div id="status"></div>
   </header>
@@ -134,6 +152,30 @@ footer { margin-top: 3rem; font-size: .8rem; color: var(--ink-3); }
     <h2>Research feed</h2>
     <p class="sub">The agents' shared forum: hypotheses, negative results, and certified results, newest first.</p>
     <div class="card" id="feed"></div>
+  </section>
+
+  <section>
+    <h2>Does the collaboration remove a watermark?</h2>
+    <p class="sub">
+      A side-analysis, reframing the same method as a fingerprint-removal attack: if the strong
+      model is watermarked, does diluting it with weak-model text destroy the mark? Each policy's
+      collaborative output is scored by the watermark's own detector (a green-list z-test → a
+      p-value; watermark present when p &lt; 0.001). This is measured <em>after the fact</em> on the
+      utility-optimal policies — the agents never see it and never optimize it.
+    </p>
+    <div class="card">
+      <figure>
+        <div id="wm-chart"></div>
+        <div class="legend" id="wm-legend"></div>
+        <figcaption>
+          Detector p-value (log scale) vs weak-token fraction, for each policy under each watermark.
+          Points <b>below</b> the dashed line are still detected — the watermark <b>survived</b>. The
+          mark only disappears at f_weak → 1, i.e. when the (watermarked) strong model is essentially
+          unused. p = 0 (underflow) is drawn at the floor.
+        </figcaption>
+      </figure>
+      <div id="wm-tables"></div>
+    </div>
   </section>
 
   <section class="how">
@@ -375,6 +417,38 @@ function renderLeaderboard(d) {
   tbl.replaceChildren(...rows);
 }
 
+// Minimal, XSS-safe markdown -> HTML: escape ALL user text first, then apply markdown
+// transforms that only emit a fixed set of safe tags. Agent summaries are untrusted.
+function mdToHtml(src) {
+  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const blocks = [];
+  src = String(src).replace(/```[\s\S]*?```/g, (m) => {           // fenced code, escaped, no inline fmt
+    const code = esc(m.replace(/^```[^\n]*\n?/, "").replace(/```\s*$/, ""));
+    blocks.push(`<pre class="md-code">${code}</pre>`);
+    return `@@CB${blocks.length - 1}@@CB`;
+  });
+  const inline = (s) => esc(s)
+    .replace(/`([^`]+)`/g, (_, c) => `<code>${c}</code>`)
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  const out = []; let list = null; let para = [];
+  const flushPara = () => { if (para.length) { out.push(`<p>${para.map(inline).join(" ")}</p>`); para = []; } };
+  const flushList = () => { if (list) { out.push(`<ul>${list.map((li) => `<li>${inline(li)}</li>`).join("")}</ul>`); list = null; } };
+  for (const raw of src.split(/\n/)) {
+    const line = raw.replace(/\s+$/, "");
+    const ph = line.match(/^@@CB(\d+)@@CB$/);
+    if (ph) { flushPara(); flushList(); out.push(blocks[+ph[1]]); continue; }
+    if (!line.trim()) { flushPara(); flushList(); continue; }
+    const h = line.match(/^(#{1,6})\s+(.*)$/);
+    if (h) { flushPara(); flushList(); out.push(`<h5 class="md-h">${inline(h[2])}</h5>`); continue; }
+    const li = line.match(/^\s*[-*]\s+(.*)$/);
+    if (li) { flushPara(); (list = list || []).push(li[1]); continue; }
+    flushList(); para.push(line.trim());
+  }
+  flushPara(); flushList();
+  return out.join("");
+}
+
 function renderFeed(d) {
   $("feed").replaceChildren(...d.findings.map((f) => {
     const div = el("div", { class: "finding" });
@@ -388,11 +462,87 @@ function renderFeed(d) {
         text: `f_weak ${pct(f.weak_token_fraction)} · recovery ${fmt(f.utility_recovery)} · utility ${fmt(f.utility)}` }));
     if (f.summary) {
       const det = el("details");
-      det.append(el("summary", { text: "read the agent's full write-up" }),
-                 el("pre", { text: f.summary }));
+      const body = el("div", { class: "md" });
+      body.innerHTML = mdToHtml(f.summary);        // safe: escaped in mdToHtml
+      det.append(el("summary", { text: "read the write-up" }), body);
       div.append(det);
     }
     return div;
+  }));
+}
+
+function renderWatermarks(wm) {
+  if (!wm || !wm.methods || !wm.methods.length) return;
+  const W = 900, H = 420, m = { l: 64, r: 24, t: 20, b: 46 };
+  const alpha = wm.alpha || 1e-3, P_FLOOR = 1e-5;
+  const X = (f) => m.l + f * (W - m.l - m.r);
+  const logp = (p) => Math.log10(Math.max(p == null ? 1 : p, P_FLOOR));
+  const Y = (p) => m.t + ((0 - logp(p)) / (0 - -5)) * (H - m.t - m.b);   // p=1 top .. 1e-5 bottom
+  const colors = [css("--series-1"), css("--series-2")];
+  const svg = el("svg", { viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img",
+    "aria-label": "Watermark detector p-value versus weak-token fraction, per policy" });
+  for (const v of axisTicks(0, 1, 0.25)) {
+    svg.append(el("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, stroke: css("--grid"), "stroke-width": 1 }));
+    svg.append(el("text", { x: X(v), y: H - m.b + 18, "text-anchor": "middle", "font-size": 11, fill: css("--ink-3"), text: pct(v, 0) }));
+  }
+  for (const [p, lab] of [[1, "1"], [0.1, "0.1"], [0.01, "10⁻²"], [1e-3, "10⁻³"], [1e-4, "10⁻⁴"], [1e-5, "≈0"]]) {
+    svg.append(el("line", { x1: m.l, x2: W - m.r, y1: Y(p), y2: Y(p), stroke: css("--grid"), "stroke-width": 1 }));
+    svg.append(el("text", { x: m.l - 8, y: Y(p) + 4, "text-anchor": "end", "font-size": 11, fill: css("--ink-3"), text: lab }));
+  }
+  svg.append(el("text", { x: (m.l + W - m.r) / 2, y: H - 6, "text-anchor": "middle", "font-size": 12, fill: css("--ink-2"),
+    text: "f_weak — share of characters written by the weak model" }));
+  svg.append(el("text", { x: 16, y: (m.t + H - m.b) / 2, "font-size": 12, fill: css("--ink-2"),
+    transform: `rotate(-90 16 ${(m.t + H - m.b) / 2})`, "text-anchor": "middle", text: "detector p-value (log)" }));
+  svg.append(el("line", { x1: m.l, x2: W - m.r, y1: Y(alpha), y2: Y(alpha), stroke: css("--warn"), "stroke-width": 1.5, "stroke-dasharray": "5 4" }));
+  svg.append(el("text", { x: m.l + 6, y: Y(alpha) - 6, "font-size": 11, fill: css("--warn"), text: `detection threshold p = ${alpha}` }));
+  svg.append(el("text", { x: W - m.r - 4, y: Y(alpha) + 16, "text-anchor": "end", "font-size": 10.5, fill: css("--ink-3"), text: "↓ detected — watermark survives" }));
+  wm.methods.forEach((meth, mi) => {
+    const color = colors[mi % colors.length];
+    const pts = meth.rows.filter((r) => r.f_weak != null && r.pvalue != null).sort((a, b) => a.f_weak - b.f_weak);
+    for (let i = 1; i < pts.length; i++)
+      svg.append(el("line", { x1: X(pts[i - 1].f_weak), y1: Y(pts[i - 1].pvalue), x2: X(pts[i].f_weak), y2: Y(pts[i].pvalue),
+        stroke: color, "stroke-width": 1.2, "stroke-opacity": 0.4 }));
+    for (const r of pts) {
+      const cx = X(r.f_weak), cy = Y(r.pvalue);
+      svg.append(el("circle", { cx, cy, r: 6, fill: r.detected ? color : css("--surface-1"), stroke: color, "stroke-width": 2 }));
+      const pdisp = r.pvalue === 0 ? "≈0 (underflow)" : r.pvalue.toExponential(2);
+      const hit = el("circle", { cx, cy, r: 14, fill: "transparent", tabindex: 0, role: "img",
+        "aria-label": `${meth.label}, ${r.policy_label}: f_weak ${pct(r.f_weak)}, p ${pdisp}, ${r.detected ? "detected" : "not detected"}` });
+      const rows = [[pct(r.f_weak), "f_weak — " + r.policy_label], [pdisp, "detector p-value"],
+                    [r.detected ? "yes — survives" : "no — removed", "watermark detected"], [meth.label, meth.domain]];
+      hit.addEventListener("pointermove", (e) => showTip(e, rows));
+      hit.addEventListener("pointerleave", hideTip);
+      hit.addEventListener("focus", () => { const b = hit.getBoundingClientRect(); showTip({ clientX: b.left + b.width / 2, clientY: b.top }, rows); });
+      hit.addEventListener("blur", hideTip);
+      svg.append(hit);
+    }
+  });
+  $("wm-chart").replaceChildren(svg);
+  $("wm-legend").replaceChildren(...wm.methods.map((meth, mi) => {
+    const k = el("span", { class: "k" });
+    const dot = el("span", { class: "dot" }); dot.style.background = colors[mi % colors.length];
+    k.append(dot, document.createTextNode(meth.label));
+    return k;
+  }), el("span", { class: "k", text: "● detected  ○ removed" }));
+  $("wm-tables").replaceChildren(...wm.methods.map((meth) => {
+    const wrap = el("div", { class: "wm-method" });
+    wrap.append(el("div", { class: "wm-title", text: meth.label }),
+                el("div", { class: "wm-meta", text: `${meth.kind} · ${meth.domain} · strong: ${meth.strong} · n=${meth.n_prompts}` }));
+    if (meth.blurb) wrap.append(el("div", { class: "wm-blurb", text: meth.blurb }));
+    const tbl = el("table"), head = el("tr");
+    ["policy", "f_weak", "recovery", "p-value", "detected"].forEach((h, i) => head.append(el("th", { class: i ? "num" : "", text: h })));
+    tbl.append(head);
+    for (const r of meth.rows) {
+      const tr = el("tr");
+      tr.append(el("td", { text: r.policy_label }), el("td", { class: "num", text: pct(r.f_weak) }),
+                el("td", { class: "num", text: fmt(r.recovery, 2) }),
+                el("td", { class: "num", text: r.pvalue === 0 ? "≈0" : r.pvalue.toExponential(1) }));
+      const det = el("td", { class: "num" });
+      det.append(el("span", { class: "wm-badge " + (r.detected ? "det" : "rem"), text: r.detected ? "detected" : "removed" }));
+      tr.append(det); tbl.append(tr);
+    }
+    wrap.append(tbl);
+    return wrap;
   }));
 }
 
@@ -413,6 +563,9 @@ async function refresh() {
   }
 }
 refresh();
+// Watermark-removal data is a separate, slowly-changing side-analysis file (optional).
+fetch("./watermarks.json", { cache: "no-store" })
+  .then((r) => (r.ok ? r.json() : null)).then((wm) => wm && renderWatermarks(wm)).catch(() => {});
 setInterval(() => {
   document.querySelectorAll("main section").forEach((s) => s.classList.add("fade"));
   refresh().finally(() =>

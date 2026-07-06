@@ -1,0 +1,87 @@
+{
+  "alpha": 0.001,
+  "methods": [
+    {
+      "name": "inference_kgw",
+      "label": "Red-green KGW (inference-time)",
+      "domain": "English AlpacaEval",
+      "strong": "Qwen2.5-7B + green-list logit bias",
+      "kind": "inference-time, no fine-tuning",
+      "blurb": "The original Kirchenbauer red-green watermark: at each step a +delta bias is added to a green-list (a gamma fraction of the vocab, hashed from the previous token). Detected by the green-count z-test. Applied only at generation.",
+      "n_prompts": 100,
+      "alpha": 0.001,
+      "tau": 0.16,
+      "rows": [
+        {
+          "policy": "strong_only",
+          "policy_label": "strong-only (anchor)",
+          "f_weak": 0.0,
+          "recovery": 1.0,
+          "pvalue": 0.0,
+          "detected": true,
+          "detect_n": 25
+        },
+        {
+          "policy": "weak_only",
+          "policy_label": "weak-only (control)",
+          "f_weak": 1.0,
+          "recovery": 0.0,
+          "pvalue": 0.4492960274219513,
+          "detected": false,
+          "detect_n": 100
+        },
+        {
+          "policy": "seamgate",
+          "policy_label": "seamgate (SOTA policy)",
+          "f_weak": 0.45511990791377904,
+          "recovery": 0.7727258057880969,
+          "pvalue": 0.0,
+          "detected": true,
+          "detect_n": 100
+        }
+      ],
+      "source": "wm_probe_inference_kgw_58157699.json"
+    },
+    {
+      "name": "eth_french",
+      "label": "Semantic KGW fingerprint (fine-tuned)",
+      "domain": "French",
+      "strong": "Qwen2.5-3B fine-tuned",
+      "kind": "learned, semantically conditioned",
+      "blurb": "A KGW watermark fine-tuned into the weights so it activates on the French domain (ETH-SRI, arXiv 2505.16723). The watermark is learned, not applied at inference.",
+      "n_prompts": 100,
+      "alpha": 0.001,
+      "tau": 0.16,
+      "rows": [
+        {
+          "policy": "strong_only",
+          "policy_label": "strong-only (anchor)",
+          "f_weak": 0.0,
+          "recovery": 1.0,
+          "pvalue": 0.0,
+          "detected": true,
+          "detect_n": 25
+        },
+        {
+          "policy": "weak_only",
+          "policy_label": "weak-only (control)",
+          "f_weak": 1.0,
+          "recovery": 0.0,
+          "pvalue": 0.03380795940756798,
+          "detected": false,
+          "detect_n": 100
+        },
+        {
+          "policy": "seamgate",
+          "policy_label": "seamgate (SOTA policy)",
+          "f_weak": 0.5538630124477065,
+          "recovery": 0.4970914787878962,
+          "pvalue": 0.0,
+          "detected": true,
+          "detect_n": 50
+        }
+      ],
+      "source": "fp_probe_58155376.json"
+    }
+  ]
+}
