@@ -126,11 +126,8 @@ d-byline .authors-affiliations h3:nth-of-type(2),d-byline .affiliation{display:n
     <figcaption>The leaderboard: policies certified at recovery&nbsp;&ge;&nbsp;bar (canonical $n=100$), with sub-bar results in grey.</figcaption>
   </figure>
 
-  <details style="margin:1rem 0">
-    <summary style="cursor:pointer;color:var(--series-1);font-family:sans-serif;font-size:.9rem">Explore the full research feed &mdash; every finding the agents have shared</summary>
-    <div class="dash-card" id="feed" style="margin-top:.6rem"></div>
-    <div id="status"></div>
-  </details>
+  <p style="font-family:sans-serif;font-size:.95rem;margin:1.1rem 0 .2rem"><a href="./explore.html"><strong>Explore the full research feed &mdash; every finding the agents have shared &rarr;</strong></a></p>
+  <div id="status" style="font-family:sans-serif;font-size:.78rem;color:var(--ink-3)"></div>
 
   <h2 id="watermark">Testing for watermark removal, post-hoc</h2>
 
@@ -520,7 +517,7 @@ async function refresh() {
     if (body === lastBody) return;
     lastBody = body;
     const d = JSON.parse(body);
-    renderKpis(d); renderFrontier(d); renderLeaderboard(d); renderFeed(d);
+    renderKpis(d); renderFrontier(d); renderLeaderboard(d);
     const newest = d.findings.length ? age(d.findings[0].created_at) : "n/a";
     $("status").textContent = `benchmark: ${d.benchmark} · latest finding ${newest} · page auto-refreshes`;
     document.querySelectorAll("main section").forEach((s) => s.classList.remove("fade"));
