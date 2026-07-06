@@ -1,2 +1,9 @@
+# Only the public site should be served: index.html, writeup.html, data.json, watermarks.json.
+# Everything else under docs/ is internal (planning docs, logs, caches) — exclude it.
 wrangler.jsonc
 .assetsignore
+.nojekyll
+.wrangler/
+superpowers/
+w2s_research/
+*.md
