@@ -171,7 +171,7 @@ d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article 
   <figure>
     <div class="dash-card"><div id="wm-chart"></div><div class="legend" id="wm-legend"></div></div>
     <div id="wm-tables"></div>
-    <figcaption>Detector p-value (log scale) vs. weak-token fraction, per policy, live from the probe results. Points <b>below</b> the dashed threshold ($p=0.001$) are detected &mdash; the watermark <b>survived</b>. Both survive at seamgate's operating point ($f_	ext{weak}pprox0.46$&ndash;$0.55$); the mark only escapes at $f_	ext{weak}=1$. Anchors validate the pipeline (watermarked&nbsp;&rarr;&nbsp;detected; un-watermarked&nbsp;&rarr;&nbsp;clean: English $ppprox0.45$ at chance, French $ppprox0.03$, a mild lean still ~30&times; above threshold).</figcaption>
+    <figcaption>Detector p-value (log scale) vs. weak-token fraction, per policy, live from the probe results. Points <b>below</b> the dashed threshold ($p=0.001$) are detected &mdash; the watermark <b>survived</b>. Both survive at seamgate's operating point ($f_\text{weak}\approx0.46$&ndash;$0.55$); the mark only escapes at $f_\text{weak}=1$. Anchors validate the pipeline (watermarked&nbsp;&rarr;&nbsp;detected; un-watermarked&nbsp;&rarr;&nbsp;clean: English $p\approx0.45$ at chance, French $p\approx0.03$, a mild lean still ~30&times; above threshold).</figcaption>
   </figure>
 
   <p>The shape is the same in both columns. Detection is overwhelming ($p\approx0$, far below $10^{-3}$) at $f_\text{weak}=0$ and still overwhelming at $f_\text{weak}\approx0.5$. The mark only escapes detection at $f_\text{weak}=1$ — pure weak-only — where by construction none of the text came from the watermarked model. The three points we have are <em>consistent with</em> a flat-then-cliff dilution curve — robust until the strong model is essentially removed — though we have not traced the shape between $f_\text{weak}\approx0.5$ and $1$ (see <a href="#limits">Limitations</a>).</p>
@@ -219,7 +219,7 @@ d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article 
 </d-appendix>
 
 <d-bibliography>
-  <script type="text/bibliography">
+  <script type="text/bibtex">
     @misc{aar,
       title={Automated Weak-to-Strong Researcher},
       author={Wen, Jiaxin and Qiu, Liang and Benton, Joe and Kirchner, Jan Hendrik and Leike, Jan},
@@ -235,7 +235,7 @@ d-article .wm-badge.det{color:var(--ink-1);border-color:var(--ink-2);}d-article 
     }
     @article{ethfp,
       title={LLM Fingerprinting via Semantically Conditioned Watermarks},
-      author={Gloaguen, Thibaud and Staab, Robin and Jovanovi{\'c}, Nikola and Vechev, Martin},
+      author={Gloaguen, Thibaud and Staab, Robin and Jovanovic, Nikola and Vechev, Martin},
       journal={arXiv preprint arXiv:2505.16723},
       year={2025},
       note={ICLR 2026}
