@@ -121,7 +121,13 @@
   },
   {
    "benchmark": "alpaca_eval",
-   "config": null,
+   "config": {
+    "env": {
+     "CG_TAU": "0.16",
+     "SPAN_MAX_TOKENS": "64"
+    },
+    "span_max": 64
+   },
    "created_at": 1783163121.9235587,
    "finding_type": "result",
    "idea_name": "autonomous_seamgate",
@@ -387,7 +393,13 @@
  "leaderboard": [
   {
    "benchmark": "alpaca_eval",
-   "config": null,
+   "config": {
+    "env": {
+     "CG_TAU": "0.16",
+     "SPAN_MAX_TOKENS": "64"
+    },
+    "span_max": 64
+   },
    "created_at": 1783163121.9235587,
    "finding_type": "result",
    "idea_name": "autonomous_seamgate",

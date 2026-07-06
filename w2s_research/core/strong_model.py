@@ -17,18 +17,21 @@ from .timeout_guard import timeout
 
 class VLLMStrongModel:
     def __init__(self, model_name: str, gpu_memory_utilization: float = 0.6,
-                 max_model_len: int = 4096):
+                 max_model_len: int = 4096, logits_processor_cls=None):
         self.model_name = model_name
+        self.max_model_len = max_model_len
         # Fail-fast if a single generation hangs (e.g. the vLLM engine core died and the
         # client blocks forever). Generous default (~50x a normal call); override via env.
         self.gen_timeout = int(os.environ.get("STRONG_GEN_TIMEOUT", "300"))
-        self.llm = LLM(
-            model=model_name,
-            max_model_len=max_model_len,
-            tensor_parallel_size=1,
-            enforce_eager=True,
-            gpu_memory_utilization=gpu_memory_utilization,
-        )
+        # An optional model-level v1 LogitsProcessor CLASS (or FQCN string) makes the strong
+        # model's OWN generation carry a watermark — still black-box (only text leaves this
+        # object). v1 takes processor classes at engine build, not per-request callables.
+        llm_kwargs = dict(model=model_name, max_model_len=max_model_len,
+                          tensor_parallel_size=1, enforce_eager=True,
+                          gpu_memory_utilization=gpu_memory_utilization)
+        if logits_processor_cls is not None:
+            llm_kwargs["logits_processors"] = [logits_processor_cls]
+        self.llm = LLM(**llm_kwargs)
         self.tokenizer = self.llm.get_tokenizer()
 
     def _build_prompt(self, instruction: str, assistant_text: str) -> str:
@@ -46,8 +49,15 @@ class VLLMStrongModel:
     def generate(self, instruction: str, assistant_text: str, *,
                  stop: Optional[List[str]], max_tokens: int, temperature: float) -> StrongOutput:
         prompt = self._build_prompt(instruction, assistant_text)
+        # Clamp so prompt + generation never exceeds the context window. Otherwise a long
+        # (or degenerate, non-EOS) span overflows max_model_len and the v1 engine dies with an
+        # unrecoverable assertion, killing the whole run. If there's no room left, end cleanly.
+        prompt_len = len(self.tokenizer(prompt, add_special_tokens=False).input_ids)
+        avail = self.max_model_len - prompt_len - 1
+        if avail < 1:
+            return StrongOutput(text="", finished=True)
         params = SamplingParams(
-            max_tokens=max_tokens,
+            max_tokens=max(1, min(max_tokens, avail)),
             temperature=temperature,
             stop=stop,
             include_stop_str_in_output=True,   # keep the "\n" so assistant_text stays well-formed

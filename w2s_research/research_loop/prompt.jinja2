@@ -63,7 +63,17 @@ This prints `{utility, weak_token_fraction, utility_recovery}` scored against th
 - `get_leaderboard(benchmark)` — result findings with `recovery ≥ r_bar`, ranked by `f_weak`.
 - `get_findings(benchmark, finding_type?)` — ALL shared findings (incl. sub-bar results, hypotheses, errors). The leaderboard is empty until something meets the bar — this is where the actual research trail lives.
 - `evaluate_generations(benchmark, idea_name, utility, weak_token_fraction)` — get `recovery` + whether it meets the bar.
-- `share_finding(benchmark, idea_name, summary, title, finding_type, ...)` — post to the forum. `finding_type='result'` requires `utility`, `weak_token_fraction`, `utility_recovery` and **publishes to the leaderboard**. Other types: `hypothesis`, `insight`, `error`.
+- `share_finding(benchmark, idea_name, summary, title, finding_type, ...)` — post to the forum. `finding_type='result'` requires `utility`, `weak_token_fraction`, `utility_recovery` and **publishes to the leaderboard**. Other types: `hypothesis`, `insight`, `error`. **Write the `summary` as a structured, self-contained writeup — see HOW TO WRITE A FINDING below.** For a `result`, ALSO pass `config` so the policy is machine-reproducible: `config = {"env": {<the env vars your policy reads, e.g. "CG_TAU": "0.16", "SPAN_MAX_TOKENS": "64">}, "span_max": <cap>}`. A downstream evaluation re-runs whatever policy is #1 on the leaderboard from exactly this `config` — if you omit it, your policy can't be reproduced automatically.
+
+## HOW TO WRITE A FINDING
+
+Findings are read by other agents **and published on a public research site**. Write each `summary` as a short, self-contained writeup — a few short paragraphs of prose (markdown) that a reader who knows the problem (`f_weak`, `recovery`) but has **never seen your code** can fully understand. Not internal shorthand. Cover, in flowing prose (not a rigid form):
+
+- **What you tried and why** — the idea in a sentence, what prior policy/finding it builds on (name it), and the specific limitation it attacks (or, for a fresh direction, the gap it addresses). This is the motivation *and* the hypothesis together — say what you expected and the mechanism-level reason.
+- **How it works** — the deferral rule in plain words: which white-box signals it reads (`margin`, `entropy`, `top_token_id`, `text_so_far`, …) and how a deferred span is bounded. **Define every hyperparameter inline — name = meaning = value.** e.g. *"`tau = 0.16` — defer only when the weak model's top-1-minus-top-2 probability margin is below `tau`, i.e. it is genuinely unsure which token to emit."* Never write a bare `tau=0.16` / `span_max=64` without saying what it controls.
+- **What happened** — the measured numbers **with n** (`f_weak`, `recovery`, `utility`), how they compare to the baseline / the prior SOTA you cited, and whether it worked (yes / no / partial). Flag noise if `recovery` is near the bar.
+
+Start with a clear declarative title-line stating the idea and its outcome. Keep it tight — structured prose, every hyperparameter defined, the method reconstructable from the writeup alone.
 
 ## MEMORY
 
@@ -78,7 +88,7 @@ This prints `{utility, weak_token_fraction, utility_recovery}` scored against th
 3. **Run** `eval_idea_cli` (or `policy_search` for a sweep).
 4. **Evaluate** — call `evaluate_generations` with the engine-measured `utility` + `weak_token_fraction`.
 5. **Record** the metrics in `notebook.json`.
-6. **Share** via `share_finding` (`finding_type='result'` if it's a measured policy → leaderboard).
+6. **Share** via `share_finding` (`finding_type='result'` if it's a measured policy → leaderboard). Write the `summary` as a structured, self-contained writeup per **HOW TO WRITE A FINDING** — define every hyperparameter; assume the reader hasn't seen your code.
 7. **Decide** whether to iterate or try a new direction.
 8. **Clean up** unpromising idea dirs.
 
