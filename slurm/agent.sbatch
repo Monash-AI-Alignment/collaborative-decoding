@@ -18,6 +18,10 @@
 set -euo pipefail
 
 REPO="${W2S_REPO:-/fs04/ax74/smur0075/automated-w2s-research}"
+# The loop runs orchestration (claude_agent_sdk) AND the engine (torch/vLLM/TransformerLens)
+# in ONE venv. Default to the repo's project .venv (hf backend only); override AGENT_VENV to a
+# TransformerLens-capable env (transformers-5 + transformer_lens + vllm) to enable --weak-backend tl.
+AGENT_VENV="${AGENT_VENV:-$REPO/.venv}"
 : "${ORCHESTRATOR_API_URL:?set ORCHESTRATOR_API_URL=http://<server-node>:8000 (see collab-server job output)}"
 : "${HF_TOKEN:?set HF_TOKEN — Llama-3.2-1B-Instruct is gated}"
 
@@ -42,9 +46,13 @@ export IDEA_NAME="${IDEA_NAME:-collaborative_decoding}"
 
 module load cuda/12.2.0 2>/dev/null || true
 cd "$REPO"
+# Put the loop's venv first on PATH so the agent's `python -m eval_idea_cli` subprocesses
+# resolve to the same (TransformerLens-capable) interpreter, enabling --weak-backend tl.
+export PATH="$AGENT_VENV/bin:$PATH"
 echo "[agent] server=$ORCHESTRATOR_API_URL judge=$JUDGE_URL benchmark=$BENCHMARK r_bar=$R_BAR"
 # The agent loop (claude_agent_sdk) AND the engine (torch/vLLM) run in the repo's
 # uv-managed .venv. Deps live in pyproject.toml (`uv add`, not ad-hoc pip — uv sync
 # prunes unmanaged packages); fail loudly here if the env is incomplete.
-"$REPO/.venv/bin/python" -c 'import claude_agent_sdk, vllm; print("[agent] env ok")'
-PYTHONPATH="$REPO" "$REPO/.venv/bin/python" -m w2s_research.research_loop.agent
+echo "[agent] venv=$AGENT_VENV"
+"$AGENT_VENV/bin/python" -c 'import claude_agent_sdk, vllm; print("[agent] env ok")'
+PYTHONPATH="$REPO" "$AGENT_VENV/bin/python" -m w2s_research.research_loop.agent
