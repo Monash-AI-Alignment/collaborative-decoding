@@ -7,6 +7,7 @@ to carry at least `m` tokens after each defer, raising f_weak.
 Stateful; resets per example (empty `text_so_far`). `step_index` only advances on
 accepted weak tokens, so the cooldown is measured in weak tokens since the last defer.
 """
+from w2s_research.core import signals
 from w2s_research.core.policy import Decision, DeferralPolicy
 
 IDEA_NAME = "entropy_cooldown"
@@ -16,6 +17,7 @@ _NEG = -10 ** 9
 
 class EntropyCooldown(DeferralPolicy):
     name = "entropy_cooldown"
+    required_hooks = ["logits"]
 
     def __init__(self, tau, cooldown):
         self.tau = tau
@@ -26,7 +28,7 @@ class EntropyCooldown(DeferralPolicy):
         if state.text_so_far == "":          # new example
             self._last_defer = _NEG
         ready = (state.step_index - self._last_defer) >= self.cooldown
-        if state.entropy > self.tau and ready:
+        if signals.entropy(state.activations["logits"]) > self.tau and ready:
             self._last_defer = state.step_index
             return Decision.DEFER
         return Decision.CONTINUE

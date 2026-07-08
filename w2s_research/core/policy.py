@@ -1,6 +1,7 @@
 """Deferral-policy contract: the single method an 'idea' implements."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
+from typing import Any, Dict
 
 
 class Decision(Enum):
@@ -10,17 +11,23 @@ class Decision(Enum):
 
 @dataclass
 class WeakStepState:
-    """Everything a policy may see about the weak model's current step.
+    """What a policy sees each step: exactly the weak-model activations it asked for,
+    plus the running text and step index.
 
-    Deliberately scalar + text only: NO logits/token distributions and NO
-    strong-model internals, so a policy cannot peek past the white/black-box line.
+    The weak model is WHITE-BOX. Declare the hooks you want as `required_hooks` on
+    your policy (a list); the engine captures them and delivers them here in
+    `activations` ({hook_name -> tensor}). Nothing is precomputed for you: request
+    "logits" and derive any distributional signal (entropy, margin, top-k, ...) via
+    `w2s_research.core.signals`; request internal hooks (e.g.
+    "blocks.8.hook_resid_post") for probes / mechinterp / any read-only readout. The
+    STRONG model stays black-box — none of its internals ever appear here.
+
+    `step_index` / `text_so_far` cannot be derived from a single step's activations,
+    so they are provided. Stateful policies self-reset when `text_so_far == ""`.
     """
-    step_index: int      # number of weak tokens already accepted
-    entropy: float       # entropy (nats) of the weak next-token distribution
-    top1_prob: float     # probability of the greedy token
-    margin: float        # top1 - top2 probability
-    top_token_id: int    # weak-vocab id of the greedy token
-    text_so_far: str     # assistant text generated so far (weak + strong)
+    activations: Dict[str, Any] = field(default_factory=dict)
+    text_so_far: str = ""    # assistant text generated so far (weak + strong)
+    step_index: int = 0      # number of weak tokens already accepted
 
 
 class DeferralPolicy:

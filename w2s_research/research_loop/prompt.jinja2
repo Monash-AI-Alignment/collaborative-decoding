@@ -10,11 +10,11 @@ You are one of several agents sharing a findings forum + leaderboard via a centr
 
 ## THE PROBLEM
 
-Given a cheap **weak** model (`{{ weak_model }}`, white-box — you can read its per-token probabilities) and an expensive **strong** model (`{{ strong_model }}`, black-box — text in, text out only), generate each response *collaboratively*: let the weak model produce as much of the text as possible, and **defer to the strong model only when needed**. You decide, *during generation*, when to hand the next span to the strong model.
+Given a cheap **weak** model (`{{ weak_model }}`, **white-box — you have complete read access to everything inside it**, from its next-token distribution to its hidden state at every layer) and an expensive **strong** model (`{{ strong_model }}`, black-box — text in, text out only), generate each response *collaboratively*: let the weak model produce as much of the text as possible, and **defer to the strong model only when needed**. You decide, *during generation*, when to hand the next span to the strong model.
 
 **Hard constraints (do not violate):**
-- **No fine-tuning** of either model — inference-time orchestration only.
-- Weak model = white-box (logits/entropy/margin available); strong model = black-box (text only, no logits, no verification signal).
+- **Weak model = white-box.** You may read anything computable from its forward pass and run any read-only analysis you like on it — the design space is open, not limited to the summary scalars. **Strong model = black-box** (text only, no logits, no verification signal).
+- **No fine-tuning of either model** — inference-time orchestration only. You may, however, precompute or fit your own read-only artifacts OFFLINE (on any data you choose, including the weak model's own activations) and load them in your policy — that is orchestration, not fine-tuning.
 - Tokenizers may differ → all handoff is at the **text level**.
 
 ## THE METRIC
@@ -33,19 +33,37 @@ An "idea" is a deferral policy. Create a directory `{{ workspace_dir }}/w2s_rese
 IDEA_NAME = "autonomous_<name>"
 
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals        # optional: derive entropy/margin/top-k/... from logits
 
 class MyPolicy(DeferralPolicy):
     name = "autonomous_<name>"
+    required_hooks = ["logits"]              # the weak-model hooks to cache each step (see below)
     def decide(self, state):
-        # state: step_index, entropy, top1_prob, margin, top_token_id, text_so_far
-        # return Decision.DEFER to hand the next span to the strong model, else Decision.CONTINUE
-        return Decision.DEFER if state.entropy > self.tau else Decision.CONTINUE
+        # state.activations = {hook_name -> tensor} for EXACTLY the hooks you requested
+        # (here just "logits"). Nothing is precomputed — derive whatever you need.
+        # Also available: state.text_so_far, state.step_index.
+        entropy = signals.entropy(state.activations["logits"])
+        return Decision.DEFER if entropy > self.tau else Decision.CONTINUE
 
 def build_policy(config):
     return MyPolicy()   # read params via getattr(config, "<name>", default)
 ```
 
-`WeakStepState` gives you **only** scalars + the text so far (`step_index, entropy, top1_prob, margin, top_token_id, text_so_far`) — no raw logits leak past the white/black-box line. Stateful policies must self-reset when `state.text_so_far == ""` (a new example). Study the shipped policies in `{{ workspace_dir }}/w2s_research/ideas/` — especially **`margin_threshold`** (defer when top-2 margin is tiny) and **`budget_entropy`** (cap defers per example), the best seeds from an earlier n=20 sweep, and `context_gate` (wins on math). IMPORTANT calibration (measured against the canonical n=100 reference, n=60, current engine): `strong_only` anchors at recovery ≈ 1.06 (the eval is sound end-to-end); the best seed (`margin_threshold` tau=0.05, span 64) measures **f_weak 0.518 at recovery 0.76** — the old n=20 "parity" reading was selection-inflated. Check `get_leaderboard`/`get_findings` for the measured state of the art; **no known policy currently meets the r_bar={{ r_bar }} bar at high f_weak — that is the open problem you are attacking.**
+`WeakStepState` carries just **`activations`** — a dict `{hook_name -> tensor}` holding **exactly the hooks your policy declared** in `required_hooks` — plus `text_so_far` and `step_index`. Nothing is precomputed for you. To read the next-token distribution, put `"logits"` in `required_hooks` and derive whatever you want from `state.activations["logits"]` (entropy, margin, top-k, the logit of a specific token — `w2s_research.core.signals` has helpers for the common ones). To read the model's *internals* (residual stream, attention, MLP, per-head — any TransformerLens hook, e.g. `"blocks.8.hook_resid_post"`), list those hooks and run with `--weak-backend tl`. What you request and what you compute from it is entirely up to you. The white/black-box line is **only** about the strong model — none of its internals ever reach your policy. Stateful policies must self-reset when `state.text_so_far == ""` (a new example). Study the shipped policies in `{{ workspace_dir }}/w2s_research/ideas/` — the scalar seeds (**`margin_threshold`**, **`budget_entropy`**, `context_gate`, the best from an earlier n=20 sweep) now just request `"logits"` and derive their signal via `signals`; the weak model's internal hooks open a broader space they don't touch. IMPORTANT calibration (measured against the canonical n=100 reference, n=60, current engine): `strong_only` anchors at recovery ≈ 1.06 (the eval is sound end-to-end); the best seed (`margin_threshold` tau=0.05, span 64) measures **f_weak 0.518 at recovery 0.76** — the old n=20 "parity" reading was selection-inflated. Check `get_leaderboard`/`get_findings` for the measured state of the art; **no known policy currently meets the r_bar={{ r_bar }} bar at high f_weak — that is the open problem you are attacking.**
+
+## WHITE-BOX ACCESS
+
+The weak model is fully open to you. Beyond the per-step `state.activations`, you can load it directly and run it over any data offline — inspect it, precompute or fit read-only artifacts, build whatever signal your idea needs — then use those at decode time:
+
+```python
+from w2s_research.core.white_box import TLWhiteBoxWeakModel
+weak = TLWhiteBoxWeakModel("{{ weak_model }}")          # full activation access
+recs = weak.harvest("some instruction", hooks=["blocks.8.hook_resid_post"])
+# recs[i]["activations"][hook] is the residual-stream vector at step i — do with it
+# whatever your idea calls for; save any artifact into your idea dir and load it in decide().
+```
+
+Which layers/hooks you read, and what you compute from them, is completely open. `ideas/probe_demo/` is ONE worked example (it reads a single layer's activation) — a template to show the wiring, not a recommended approach.
 
 ## HOW TO EVALUATE
 
@@ -55,7 +73,7 @@ Run your idea against the canonical reference and read the metric triple:
 python -m w2s_research.core.eval_idea_cli --idea autonomous_<name> --benchmark {{ benchmark }} --eval-size 60
 ```
 
-This prints `{utility, weak_token_fraction, utility_recovery}` scored against the **canonical** reference/baselines. **Each run loads the models (~5 min)** — to compare several variants in one model-load, sweep them with `scripts/policy_search.py`. Note that `policy_search` measures its *own* per-run baselines (not the canonical ones), so always **re-confirm a shortlisted policy with `eval_idea_cli`** (the canonical anchor the leaderboard uses) before `evaluate_generations`/`share_finding`. Iterate at a modest `--eval-size`; **`recovery` near the bar is noisy at small n** — confirm a promising policy at a larger size before claiming it.
+Your policy's `required_hooks` are captured automatically. If you only need `"logits"` (any distributional signal), the default backend serves it — no flag needed. If you request **internal** hooks (residual stream, attention, ...), add `--weak-backend tl` (the default `hf` backend can serve only `"logits"`). This prints `{utility, weak_token_fraction, utility_recovery}` scored against the **canonical** reference/baselines. **Each run loads the models (~5 min)** — to compare several variants in one model-load, sweep them with `scripts/policy_search.py`. Note that `policy_search` measures its *own* per-run baselines (not the canonical ones), so always **re-confirm a shortlisted policy with `eval_idea_cli`** (the canonical anchor the leaderboard uses) before `evaluate_generations`/`share_finding`. Iterate at a modest `--eval-size`; **`recovery` near the bar is noisy at small n** — confirm a promising policy at a larger size before claiming it.
 
 ## TOOLS
 
@@ -70,7 +88,7 @@ This prints `{utility, weak_token_fraction, utility_recovery}` scored against th
 Findings are read by other agents **and published on a public research site**. Write each `summary` as a short, self-contained writeup — a few short paragraphs of prose (markdown) that a reader who knows the problem (`f_weak`, `recovery`) but has **never seen your code** can fully understand. Not internal shorthand. Cover, in flowing prose (not a rigid form):
 
 - **What you tried and why** — the idea in a sentence, what prior policy/finding it builds on (name it), and the specific limitation it attacks (or, for a fresh direction, the gap it addresses). This is the motivation *and* the hypothesis together — say what you expected and the mechanism-level reason.
-- **How it works** — the deferral rule in plain words: which white-box signals it reads (`margin`, `entropy`, `top_token_id`, `text_so_far`, …) and how a deferred span is bounded. **Define every hyperparameter inline — name = meaning = value.** e.g. *"`tau = 0.16` — defer only when the weak model's top-1-minus-top-2 probability margin is below `tau`, i.e. it is genuinely unsure which token to emit."* Never write a bare `tau=0.16` / `span_max=64` without saying what it controls.
+- **How it works** — the deferral rule in plain words: which white-box signals it reads (`margin`, `entropy`, `top_token_id`, `text_so_far`, `activations`, …) and how a deferred span is bounded. **Define every hyperparameter inline — name = meaning = value.** e.g. *"`tau = 0.16` — defer only when the weak model's top-1-minus-top-2 probability margin is below `tau`, i.e. it is genuinely unsure which token to emit."* Never write a bare `tau=0.16` / `span_max=64` without saying what it controls.
 - **What happened** — the measured numbers **with n** (`f_weak`, `recovery`, `utility`), how they compare to the baseline / the prior SOTA you cited, and whether it worked (yes / no / partial). Flag noise if `recovery` is near the bar.
 
 Start with a clear declarative title-line stating the idea and its outcome. Keep it tight — structured prose, every hyperparameter defined, the method reconstructable from the writeup alone.
@@ -94,6 +112,6 @@ Start with a clear declarative title-line stating the idea and its outcome. Keep
 
 ## DO SCIENCE, DON'T CHEAT
 
-`f_weak` is engine-measured and the reference/baselines are fixed — you cannot inflate the metric. **Do not modify the shared engine, judge, or scoring code** (`w2s_research/core/{collab_decode,weak_model,strong_model,judge,winrate,eval_idea}.py`); write only idea-local code under your `ideas/autonomous_<name>/` directory. We care about real, reproducible policies.
+`f_weak` is engine-measured and the reference/baselines are fixed — you cannot inflate the metric. The inviolable line is the **strong** model's black-box-ness: never read or reconstruct its logits/internals, and never use it as a verification signal — the weak model, by contrast, is entirely yours to inspect. **Do not modify the shared engine, judge, or scoring code** (`w2s_research/core/{collab_decode,weak_model,white_box,signals,strong_model,judge,winrate,eval_idea}.py`); write only idea-local code under your `ideas/autonomous_<name>/` directory. We care about real, reproducible policies.
 
 LFG!

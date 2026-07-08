@@ -4,19 +4,22 @@ Higher-recall deferral: catches more uncertain steps than entropy alone, trading
 weak-fraction down for safer utility. Frontier reference against `and_gate`.
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "or_gate"
 
 
 class OrGate(DeferralPolicy):
     name = "or_gate"
+    required_hooks = ["logits"]
 
     def __init__(self, tau_e, tau_m):
         self.tau_e = tau_e
         self.tau_m = tau_m
 
     def decide(self, state):
-        uncertain = state.entropy > self.tau_e or state.margin < self.tau_m
+        logits = state.activations["logits"]
+        uncertain = signals.entropy(logits) > self.tau_e or signals.margin(logits) < self.tau_m
         return Decision.DEFER if uncertain else Decision.CONTINUE
 
 

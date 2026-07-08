@@ -8,12 +8,14 @@ strong model produces the graded answer conditioned on the weak model's reasonin
 The marker is configurable; default targets GSM8K's '#### <number>' format.
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "answer_protect"
 
 
 class AnswerProtect(DeferralPolicy):
     name = "answer_protect"
+    required_hooks = ["logits"]
 
     def __init__(self, tau, marker):
         self.tau = tau
@@ -22,7 +24,8 @@ class AnswerProtect(DeferralPolicy):
     def decide(self, state):
         if self.marker and self.marker in state.text_so_far:
             return Decision.DEFER
-        return Decision.DEFER if state.entropy > self.tau else Decision.CONTINUE
+        entropy = signals.entropy(state.activations["logits"])
+        return Decision.DEFER if entropy > self.tau else Decision.CONTINUE
 
 
 def build_policy(config):

@@ -1,11 +1,14 @@
 import importlib
 from w2s_research.core.policy import Decision, WeakStepState
 from w2s_research.core.decode_config import DecodeConfig
+from tests.fakes import synth_activations
 
 
-def state(entropy=0.1, margin=0.8, top1=0.9, step=0):
-    return WeakStepState(step_index=step, entropy=entropy, top1_prob=top1,
-                         margin=margin, top_token_id=0, text_so_far="")
+def state(entropy=0.1, margin=None, top1=0.9, step=0):
+    # Encode the requested signal into synthetic logits (margin wins if given);
+    # policies derive entropy/margin from state.activations["logits"].
+    return WeakStepState(activations=synth_activations(entropy=entropy, margin=margin),
+                         text_so_far="", step_index=step)
 
 
 def build(idea, **overrides):

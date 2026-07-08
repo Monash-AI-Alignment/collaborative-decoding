@@ -7,12 +7,14 @@ enough to preserve utility while keeping f_weak high.
 Stateful; the per-example defer counter resets on an empty `text_so_far`.
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "budget_entropy"
 
 
 class BudgetEntropy(DeferralPolicy):
     name = "budget_entropy"
+    required_hooks = ["logits"]
 
     def __init__(self, tau, budget):
         self.tau = tau
@@ -22,7 +24,8 @@ class BudgetEntropy(DeferralPolicy):
     def decide(self, state):
         if state.text_so_far == "":          # new example
             self._defers = 0
-        if state.entropy > self.tau and self._defers < self.budget:
+        entropy = signals.entropy(state.activations["logits"])
+        if entropy > self.tau and self._defers < self.budget:
             self._defers += 1
             return Decision.DEFER
         return Decision.CONTINUE

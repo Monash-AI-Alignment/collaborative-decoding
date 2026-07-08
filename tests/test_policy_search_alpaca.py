@@ -8,8 +8,8 @@ from w2s_research.core.interfaces import WeakStep, StrongOutput
 
 def _weak():
     return FakeWeakModel([
-        WeakStep(top_token_id=5, text_piece="hello ", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=False),
-        WeakStep(top_token_id=6, text_piece="world", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=True),
+        WeakStep(top_token_id=5, text_piece="hello ", is_eos=False),
+        WeakStep(top_token_id=6, text_piece="world", is_eos=True),
     ])
 
 
@@ -37,8 +37,8 @@ def test_run_one_alpaca_judge_none_is_generation_only():
 
 def test_run_one_math_unchanged():
     weak = FakeWeakModel([
-        WeakStep(top_token_id=5, text_piece="#### 7", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=False),
-        WeakStep(top_token_id=6, text_piece="", entropy=0.0, top1_prob=1.0, margin=1.0, is_eos=True),
+        WeakStep(top_token_id=5, text_piece="#### 7", is_eos=False),
+        WeakStep(top_token_id=6, text_piece="", is_eos=True),
     ])
     spec = {"idea": "weak_only", "params": {}, "span_max": 64}
     m = policy_search.run_one(weak, FakeStrongModel([]), ["q"], ["7"], "gsm8k", spec)

@@ -17,10 +17,8 @@ class CycleWeak:
         self._emitted = False
     def peek(self):
         if not self._emitted:
-            return WeakStep(top_token_id=1, text_piece=f"#### {self.answer}",
-                            entropy=0.0, top1_prob=1.0, margin=1.0, is_eos=False)
-        return WeakStep(top_token_id=-1, text_piece="", entropy=0.0,
-                        top1_prob=1.0, margin=1.0, is_eos=True)
+            return WeakStep(top_token_id=1, text_piece=f"#### {self.answer}", is_eos=False)
+        return WeakStep(top_token_id=-1, text_piece="", is_eos=True)
     def commit(self, token_id):
         self._emitted = True
     def resync(self, instruction, assistant_text):

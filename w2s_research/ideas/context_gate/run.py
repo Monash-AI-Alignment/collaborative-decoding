@@ -11,6 +11,7 @@ Uses only `text_so_far` + the scalar uncertainty signals (no token-text peeking)
 it stays within the white-box-weak / black-box-strong contract.
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "context_gate"
 
@@ -19,17 +20,19 @@ _CRITICAL_TRAILING = set("=+-*/:xX×÷")   # = + - * / : x × ÷
 
 class ContextGate(DeferralPolicy):
     name = "context_gate"
+    required_hooks = ["logits"]
 
     def __init__(self, tau, tau_hi):
         self.tau = tau
         self.tau_hi = tau_hi
 
     def decide(self, state):
-        if state.entropy <= self.tau:
+        entropy = signals.entropy(state.activations["logits"])
+        if entropy <= self.tau:
             return Decision.CONTINUE
         ctx = state.text_so_far.rstrip()
         critical = bool(ctx) and ctx[-1] in _CRITICAL_TRAILING
-        if critical or state.entropy > self.tau_hi:
+        if critical or entropy > self.tau_hi:
             return Decision.DEFER
         return Decision.CONTINUE
 

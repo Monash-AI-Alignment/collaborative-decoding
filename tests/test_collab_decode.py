@@ -1,9 +1,10 @@
 # tests/test_collab_decode.py
+from w2s_research.core import signals
 from w2s_research.core.interfaces import WeakStep, StrongOutput
 from w2s_research.core.collab_decode import CollaborativeDecoder, aggregate_weak_fraction
 from w2s_research.core.decode_config import DecodeConfig
 from w2s_research.core.policy import Decision, DeferralPolicy
-from tests.fakes import FakeWeakModel, FakeStrongModel
+from tests.fakes import FakeWeakModel, FakeStrongModel, synth_activations
 
 
 class AlwaysContinue(DeferralPolicy):
@@ -13,13 +14,16 @@ class AlwaysDefer(DeferralPolicy):
     def decide(self, state): return Decision.DEFER
 
 class HighEntropyDefers(DeferralPolicy):
+    required_hooks = ["logits"]
     def decide(self, state):
-        return Decision.DEFER if state.entropy > 1.0 else Decision.CONTINUE
+        return Decision.DEFER if signals.entropy(state.activations["logits"]) > 1.0 else Decision.CONTINUE
 
 
 def W(piece, entropy=0.1, eos=False):
-    return WeakStep(top_token_id=1, text_piece=piece, entropy=entropy,
-                    top1_prob=0.9, margin=0.8, is_eos=eos)
+    # every step carries "logits" so a policy that reads them (even on the EOS
+    # step, which the engine still passes to decide) never hits a missing key.
+    return WeakStep(top_token_id=1, text_piece=piece, is_eos=eos,
+                    activations=synth_activations(entropy=entropy))
 
 
 def test_weak_only_path_counts_all_chars_weak():

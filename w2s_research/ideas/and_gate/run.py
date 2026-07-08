@@ -5,19 +5,22 @@ top1-top2 margin before handing off. Fewer, more-justified defers -> the weak
 model carries more characters (higher f_weak) at, hopefully, similar utility.
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "and_gate"
 
 
 class AndGate(DeferralPolicy):
     name = "and_gate"
+    required_hooks = ["logits"]
 
     def __init__(self, tau_e, tau_m):
         self.tau_e = tau_e
         self.tau_m = tau_m
 
     def decide(self, state):
-        uncertain = state.entropy > self.tau_e and state.margin < self.tau_m
+        logits = state.activations["logits"]
+        uncertain = signals.entropy(logits) > self.tau_e and signals.margin(logits) < self.tau_m
         return Decision.DEFER if uncertain else Decision.CONTINUE
 
 

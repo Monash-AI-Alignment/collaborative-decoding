@@ -52,7 +52,8 @@ def score_generations(benchmark, generations, canonical, judge=None, winrate_mod
 
 
 def evaluate_idea(idea_name, benchmark, eval_size, weak=None, strong=None,
-                  judge=None, winrate_mode="lc", baselines_dir=None):
+                  judge=None, winrate_mode="lc", baselines_dir=None,
+                  weak_backend=None, capture_hooks=None):
     from w2s_research.core.decode_config import DecodeConfig
     from w2s_research.core.collab_decode import CollaborativeDecoder, aggregate_weak_fraction
 
@@ -61,11 +62,26 @@ def evaluate_idea(idea_name, benchmark, eval_size, weak=None, strong=None,
 
     cfg = DecodeConfig(benchmark=benchmark, eval_size=len(prompts))
     cfg.span_stop = ["\n"]
+    if weak_backend is not None:
+        cfg.weak_backend = weak_backend
+    if capture_hooks is not None:
+        cfg.capture_hooks = list(capture_hooks)
     mod = importlib.import_module(f"w2s_research.ideas.{idea_name}.run")
     policy = mod.build_policy(cfg)
+    # A white-box policy may declare which activations it reads; the engine unions
+    # those into the capture set so `state.activations` carries them each step.
+    req = list(getattr(policy, "required_hooks", []) or [])
+    if req:
+        cfg.capture_hooks = list(dict.fromkeys(list(cfg.capture_hooks) + req))
     if weak is None:
-        from w2s_research.core.weak_model import HFWeakModel
-        weak = HFWeakModel(cfg.weak_model, max_model_len=cfg.weak_max_model_len)
+        if cfg.weak_backend == "tl":
+            from w2s_research.core.white_box import TLWhiteBoxWeakModel
+            weak = TLWhiteBoxWeakModel(cfg.weak_model, max_model_len=cfg.weak_max_model_len,
+                                       capture_hooks=cfg.capture_hooks or None)
+        else:
+            from w2s_research.core.weak_model import HFWeakModel
+            weak = HFWeakModel(cfg.weak_model, max_model_len=cfg.weak_max_model_len,
+                               capture_hooks=cfg.capture_hooks or None)
     if strong is None:
         from w2s_research.core.strong_model import VLLMStrongModel
         strong = VLLMStrongModel(cfg.strong_model,

@@ -23,7 +23,8 @@ _DTYPES = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torc
 
 class HFWeakModel:
     def __init__(self, model_name: str, max_model_len: int = 4096,
-                 device: str = "cuda", dtype: str = "bfloat16"):
+                 device: str = "cuda", dtype: str = "bfloat16",
+                 capture_hooks=None):
         self.model_name = model_name
         self.max_model_len = max_model_len
         self.device = device
@@ -32,6 +33,9 @@ class HFWeakModel:
             model_name, dtype=_DTYPES[dtype],
         ).to(device).eval()
         self.eos_token_id = self.tokenizer.eos_token_id
+        # This scalar-only backend can serve just "logits" to the policy; internal
+        # hooks (residual stream, attention, ...) require the TL white-box backend.
+        self.capture_hooks = list(capture_hooks) if capture_hooks else []
         self._ids = None  # [1, T] tensor: the current context token ids
 
     def _prefix_ids(self, instruction: str):
@@ -66,13 +70,7 @@ class HFWeakModel:
     @torch.no_grad()
     def peek(self) -> WeakStep:
         logits = self.model(self._ids).logits[0, -1, :].float()
-        probs = torch.softmax(logits, dim=-1)
-        top_id = int(probs.argmax().item())
-
-        ent = float(-(probs * torch.log(probs.clamp_min(1e-12))).sum().item())
-        top2 = torch.topk(probs, k=min(2, probs.numel()))
-        top1_prob = float(top2.values[0].item())
-        margin = float((top2.values[0] - top2.values[1]).item()) if top2.values.numel() > 1 else top1_prob
+        top_id = int(logits.argmax().item())
 
         is_eos = self.eos_token_id is not None and top_id == self.eos_token_id
         if is_eos:
@@ -86,5 +84,11 @@ class HFWeakModel:
             )
             text_piece = after[len(prev):]
 
-        return WeakStep(top_token_id=top_id, text_piece=text_piece, entropy=ent,
-                        top1_prob=top1_prob, margin=margin, is_eos=is_eos)
+        # Deliver only what the policy asked for. On this backend that is "logits"
+        # (the raw next-token distribution); a policy derives entropy/margin/top-k
+        # from it via w2s_research.core.signals.
+        acts = {}
+        if "logits" in self.capture_hooks:
+            acts["logits"] = logits.detach().cpu()
+        return WeakStep(top_token_id=top_id, text_piece=text_piece,
+                        is_eos=is_eos, activations=acts)

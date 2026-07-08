@@ -17,6 +17,16 @@ class DecodeConfig:
     strong_model: str = field(
         default_factory=lambda: os.getenv("STRONG_MODEL", "Qwen/Qwen2.5-7B-Instruct"))
 
+    # Weak-model backend: "hf" = scalar-only HFWeakModel; "tl" = TransformerLens
+    # white-box model that also exposes per-step activations on WeakStepState (for
+    # probes / mechinterp / any read-only readout). Strong model is unaffected.
+    weak_backend: str = field(default_factory=lambda: os.getenv("WEAK_BACKEND", "hf"))
+    # TL hook names to capture each step under the "tl" backend, e.g.
+    # "blocks.8.hook_resid_post" (comma-separated via CAPTURE_HOOKS). A policy may
+    # also declare `required_hooks`, which the engine unions in automatically.
+    capture_hooks: List[str] = field(default_factory=lambda: [
+        h.strip() for h in os.getenv("CAPTURE_HOOKS", "").split(",") if h.strip()])
+
     # Engine limits
     max_steps: int = 768              # max weak-token steps per example
     max_chars: int = 6000             # hard cap on assistant_text length per example

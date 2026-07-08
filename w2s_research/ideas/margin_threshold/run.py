@@ -1,16 +1,19 @@
 import os
 
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "margin_threshold"
 
 
 class MarginThreshold(DeferralPolicy):
     name = "margin_threshold"
+    required_hooks = ["logits"]
     def __init__(self, tau):
         self.tau = tau
     def decide(self, state):
-        return Decision.DEFER if state.margin < self.tau else Decision.CONTINUE
+        margin = signals.margin(state.activations["logits"])
+        return Decision.DEFER if margin < self.tau else Decision.CONTINUE
 
 
 def build_policy(config):

@@ -51,12 +51,9 @@ class CollaborativeDecoder:
         for _ in range(cfg.max_steps):
             step = self.weak.peek()
             state = WeakStepState(
-                step_index=num_weak_steps,
-                entropy=step.entropy,
-                top1_prob=step.top1_prob,
-                margin=step.margin,
-                top_token_id=step.top_token_id,
+                activations=step.activations,
                 text_so_far=assistant,
+                step_index=num_weak_steps,
             )
             if self.policy.decide(state) is Decision.CONTINUE:
                 if step.is_eos:

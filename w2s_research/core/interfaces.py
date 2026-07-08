@@ -4,19 +4,22 @@ The engine depends ONLY on these protocols, so real HF/vLLM adapters and test
 fakes are interchangeable. The StrongModel surface is text-in/text-out by
 construction (the black-box constraint lives in the type, not in convention).
 """
-from dataclasses import dataclass
-from typing import List, Optional, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional, Protocol, runtime_checkable
 
 
 @dataclass
 class WeakStep:
-    """Greedy next-token summary from the white-box weak model."""
-    top_token_id: int
-    text_piece: str      # marginal text contributed by accepting top_token_id
-    entropy: float
-    top1_prob: float
-    margin: float
+    """What the ENGINE needs to advance generation this step, plus the activations
+    the policy asked for. Distributional signals (entropy, margin, top-k, ...) are
+    NOT precomputed: a policy that wants them lists "logits" in its hooks and derives
+    them (see w2s_research.core.signals)."""
+    top_token_id: int             # argmax token the engine commits on CONTINUE
+    text_piece: str               # marginal text contributed by accepting top_token_id
     is_eos: bool
+    # {hook_name -> last-position activation tensor}: exactly the hooks the policy
+    # requested (may include "logits"; empty if it requested nothing).
+    activations: Dict[str, Any] = field(default_factory=dict)
 
 
 @runtime_checkable

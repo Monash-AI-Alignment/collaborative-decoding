@@ -3,10 +3,9 @@ from w2s_research.core.policy import Decision, WeakStepState, DeferralPolicy
 
 
 def make_state(**kw):
-    base = dict(step_index=0, entropy=0.1, top1_prob=0.9, margin=0.8,
-                top_token_id=5, text_so_far="")
-    base.update(kw)
-    return WeakStepState(**base)
+    return WeakStepState(activations=kw.get("activations", {}),
+                         text_so_far=kw.get("text_so_far", ""),
+                         step_index=kw.get("step_index", 0))
 
 
 def test_decision_members():

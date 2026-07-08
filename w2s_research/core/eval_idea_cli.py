@@ -20,12 +20,20 @@ def main():
     ap.add_argument("--eval-size", type=int, default=60)
     ap.add_argument("--winrate-mode", default=None, choices=["plain", "lc"],
                     help="override the canonical artifact's winrate mode (default: use the artifact's)")
+    ap.add_argument("--weak-backend", default=None, choices=["hf", "tl"],
+                    help="weak-model backend: hf (scalar-only) or tl (white-box activations)")
+    ap.add_argument("--capture-hooks", default=None,
+                    help="comma-separated TL hook names to expose on state.activations "
+                         "(tl backend); a policy's required_hooks are added automatically")
     ap.add_argument("--out", default=None, help="optional path to write the full result JSON")
     args = ap.parse_args()
 
+    capture_hooks = ([h.strip() for h in args.capture_hooks.split(",") if h.strip()]
+                     if args.capture_hooks else None)
     from w2s_research.core.eval_idea import evaluate_idea
     out = evaluate_idea(args.idea, args.benchmark, args.eval_size,
-                        winrate_mode=args.winrate_mode)
+                        winrate_mode=args.winrate_mode,
+                        weak_backend=args.weak_backend, capture_hooks=capture_hooks)
     summary = {k: out[k] for k in ("idea", "benchmark", "n", "utility",
                                    "weak_token_fraction", "utility_recovery")}
     print(json.dumps(summary, indent=2))

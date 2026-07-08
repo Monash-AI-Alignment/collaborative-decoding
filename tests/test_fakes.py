@@ -4,8 +4,8 @@ from tests.fakes import FakeWeakModel, FakeStrongModel
 
 def _two_steps():
     return [
-        WeakStep(top_token_id=1, text_piece="2", entropy=0.1, top1_prob=0.9, margin=0.8, is_eos=False),
-        WeakStep(top_token_id=2, text_piece=" + 2", entropy=2.0, top1_prob=0.3, margin=0.05, is_eos=False),
+        WeakStep(top_token_id=1, text_piece="2", is_eos=False),
+        WeakStep(top_token_id=2, text_piece=" + 2", is_eos=False),
     ]
 
 
@@ -15,7 +15,7 @@ def test_fake_weak_peek_commit_advances():
     assert weak.peek().text_piece == "2"      # peek does not advance
     assert weak.peek().text_piece == "2"
     weak.commit(1)                            # commit advances
-    assert weak.peek().text_piece == " + 2" and weak.peek().entropy == 2.0
+    assert weak.peek().text_piece == " + 2" and weak.peek().top_token_id == 2
 
 
 def test_fake_weak_resync_consumes_deferred_step():

@@ -8,12 +8,14 @@ Stateful across the engine's per-example loop; resets when a new example begins
 (detected by an empty `text_so_far`).
 """
 from w2s_research.core.policy import Decision, DeferralPolicy
+from w2s_research.core import signals
 
 IDEA_NAME = "entropy_streak"
 
 
 class EntropyStreak(DeferralPolicy):
     name = "entropy_streak"
+    required_hooks = ["logits"]
 
     def __init__(self, tau, k):
         self.tau = tau
@@ -23,7 +25,7 @@ class EntropyStreak(DeferralPolicy):
     def decide(self, state):
         if state.text_so_far == "":          # new example -> reset hysteresis
             self._streak = 0
-        if state.entropy > self.tau:
+        if signals.entropy(state.activations["logits"]) > self.tau:
             self._streak += 1
             if self._streak >= self.k:
                 self._streak = 0
