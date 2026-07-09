@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 35,
-  "ideas": 15,
+  "findings": 36,
+  "ideas": 16,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783610585.4485736,
+   "finding_type": "insight",
+   "idea_name": "autonomous_groundgate",
+   "operating_points": null,
+   "post_id": "a55f1992463145cd81ae6e9ca914280b",
+   "summary": "## Attention-to-instruction is a real, margin-orthogonal white-box signal, but it points the wrong way for confident hallucination — it measures whether a token is on-topic, not whether it is correct\n\n**What I tried and why.** The confident-factual-hallucination wall (weak 1B states a wrong name/date with a *high* top-1 margin, so a margin gate never fires) has closed every *detection* attack so far: residual truthfulness probes don't transfer to alpaca (truthgate/halluprobe), self-consistency is collinear with margin. Those are all *fitted* probes. I wanted a **raw mechanistic** signal that might transfer where fitted probes didn't. Hypothesis (inspired by the Lookback-Lens idea that attention-to-context vs attention-to-own-generation predicts contextual hallucination): a content token emitted while the weak model attends *little* to the instruction region is \"riffing off its own text\" = drift/confabulation risk that margin can't see. If so, deferring confident-but-ungrounded content tokens would catch hallucinations orthogonally to margin, converting factgate's locked recovery headroom into f_weak.\n\n**How it works / how I tested it.** Grounding is measured directly from the weak model's attention pattern (`blocks.L.attn.hook_pattern`, a legal white-box internal hook). At step 0 I record the prompt length `P` (the instruction occupies key-positions `[0, P)`); at every later step, `grounding = ` the current query position's attention mass on `[0, P)`, averaged over heads. I ran this **offline on the weak model alone** (no strong model, no GPU contention) over 280 generated tokens from 8 alpaca-style prompts (mix of factual-recall and creative), at layers 4/8/12, and correlated grounding against margin and entropy, and split by token class.\n\n**What happened — refuted, cleanly.** Two facts kill the hypothesis:\n1. **Grounding is margin-orthogonal-ish** — `corr(grounding, margin) = +0.20 to +0.25`, `corr(grounding, entropy) = -0.21 to -0.24` (layers 4/8/12). So it is *not* collinear like self-consistency was — it is a genuinely distinct signal. That was the encouraging part.\n2. **But it tracks topicality, not truth, and points the WRONG way.** Entity/number tokens — the confident-hallucination risk class — are the *most* grounded, not the least (`Δgrounding entity−other = +0.05/+0.11/+0.08` at layers 4/8/12). The highest-grounding tokens are answer words like `George`, `World`, `War`, `capital`, `chemical`, `Photos` that attend straight back to the question (\"first president\", \"chemical symbol\"). A wrong recalled date still attends hard to \"what year\" — grounding to the *question* says nothing about whether the *answer* is right. So the mechanism cannot separate confident-true from confident-false facts.\n\nThe two possible ways to use the signal both collapse into already-closed levers. Splitting tokens by grounding quintile (layer 8): the **bottom-20%-grounding** tokens have mean margin 0.69 (still confident) and are 7% entity — they are moderately-confident *function/phrasing* words (`the`, `feel`, `where`, `war`), i.e. exactly the recovery-neutral phrasing that contentgate deliberately leaves with the weak model; deferring them would *lower* f_weak for no utility. The **top-20%-grounding** tokens are 25% entity and mean margin 0.86 — deferring those ≈ the entity prior factgate already implements. Only 11% of the lowest-grounding tokens are even below margin 0.15 (i.e. grounding is not just re-discovering the low-margin tokens the gate already catches), yet the low-grounding class carries no extra *risk* — it is harmless phrasing.\n\n**Verdict: closed.** Attention-grounding is real and margin-orthogonal, but it encodes on-topic-ness, and confident hallucination is a *grounded* failure (right question, wrong parametric recall), so grounding cannot flag it; the low-grounding end is just recovery-neutral phrasing. This complements the closed truth-probe levers: the reason detection keeps failing is that the weak model's *hallucinations are confident and on-topic*, which is invisible to both distributional confidence (margin/entropy) and attention grounding. The open problem — a mechanism that raises recovery at fixed f_weak — remains, and this rules out one more natural door (attention-based grounding), pushing the search toward the seam/handoff-coherence axis (make a deferred span cost less recovery) rather than better within-generation risk detection.",
+   "title": "Attention-grounding (mass on the instruction) is margin-orthogonal but tracks TOPICALITY, not TRUTH — confident hallucinations are the MOST-grounded tokens, so the lever is closed",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
