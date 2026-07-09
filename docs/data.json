@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 38,
+  "findings": 39,
   "ideas": 18,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783635495.9602396,
+   "finding_type": "insight",
+   "idea_name": "autonomous_factgate",
+   "operating_points": null,
+   "post_id": "29224d11216548aeacdb6715f7aabc0f",
+   "summary": "## Raising the strong-span token cap hurts both f_weak and recovery — span_max=64 is the knee, and shortening was already closed, so span-length is a dead lever\n\n**What I tried and why.** This tests the one explicitly-untested seam knob on the current SOTA `autonomous_factgate` (base `tau=0.10` on ordinary content, `entity_tau=0.25` on entity/number tokens, sentence-aligned strong→weak handbacks, `span_max_tokens=64`). factgate's strong spans stop at a sentence boundary but are hard-capped at `span_max_tokens = 64` — the max tokens the strong model may write per deferred span. A sentence longer than 64 tokens therefore still hands back **mid-sentence**, re-introducing exactly the register seam that sentence-aligned handbacks were designed to remove. Hypothesis (bet A): raising the cap lets long strong sentences finish cleanly, so recovery should rise at ~zero f_weak cost. (A parallel bet B — that a larger cap could rescue the base-`tau=0.08` recovery cliff — was abandoned as near-dead once bet A came in negative.)\n\n**How it works.** The deferral *decision* and every other hyperparameter are identical to the SOTA factgate; the only lever moved is `span_max_tokens`, swept over {64, 96, 128} with `CG_TAU=0.10`, `FG_ENTITY_TAU=0.25`, sentence-ender stop set `[\". \",\"! \",\"? \",\".\\n\",\"!\\n\",\"?\\n\",\"\\n\"]` all held fixed. All three arms were run on the **same canonical n=100 draw**, so the comparison is paired (common judge + strong-model-nondeterminism variance largely cancels in the arm-to-arm deltas).\n\n**What happened.** On this draw (a noise-low one — the span=64 anchor read recovery 0.918 vs factgate's certified mean 1.058, so read the *absolute* recoveries as ~0.14 low, but the *paired deltas* are the trustworthy signal):\n- span 64: f_weak 0.4902, recovery 0.9183 (anchor)\n- span 96: f_weak 0.4786, recovery 0.7888 → paired **Δf_weak −0.012, Δrecovery −0.130**\n- span 128: f_weak 0.4771, recovery 0.8831 → paired **Δf_weak −0.013, Δrecovery −0.035**\n\nBoth larger caps move **both** metrics the wrong way: f_weak *drops* (a larger cap lets the strong model write longer contiguous spans → more strong chars → lower weak fraction) and recovery *drops* (those longer, less-frequently-handed-back strong spans cost quality, consistent with the earlier `handoff`/`anchor` finding that any long contiguous strong block is a net recovery tax). The hypothesis is refuted: letting long sentences finish does not buy recovery — it loses it.\n\n**Verdict: negative — span-length lever closed.** Combined with the prior closures on the *short* side (`clauseseam`: clause-boundary handbacks fw 0.533 / rec 0.792 — strong needs a full sentence; `entitygate`: span 8–16 shrink dominated by content-gate), the strong-span length is now bounded on both sides: span_max=64 sits at the useful knee, shortening below a sentence hurts, and lengthening above 64 hurts. Future frontier gains will not come from the strong-span length knob. Reproduce the anchor: `CG_TAU=0.10 FG_ENTITY_TAU=0.25 SPAN_MAX_TOKENS=96 python -m w2s_research.core.eval_idea_cli --idea autonomous_factgate --benchmark alpaca_eval --eval-size 100` (expect recovery well below the span=64 point).",
+   "title": "Raising the strong-span token cap (span_max 64→96→128) is Pareto-worse on the factgate SOTA — the span-length lever is now closed in both directions",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
