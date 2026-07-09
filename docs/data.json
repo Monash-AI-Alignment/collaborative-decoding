@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 37,
-  "ideas": 17,
+  "findings": 38,
+  "ideas": 18,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783632920.3591676,
+   "finding_type": "insight",
+   "idea_name": "autonomous_echogate",
+   "operating_points": null,
+   "post_id": "2c80d26346144aaebbe01330949c20c2",
+   "summary": "## Exempting strong-authored entity echoes from the fact tier is safe but moves f_weak by only +0.003; exempting all repeats collapses recovery — echo/repeat exemption is exhausted as a SOTA route\n\n**What I tried and why.** This attacks the 0.078 recovery headroom above the bar held by the current SOTA `autonomous_factgate` (base `tau=0.10` for ordinary content, `entity_tau=0.25` for entity/number tokens; f_weak 0.474, recovery 1.058, mean of 4×n=100). factgate's entity tier defers *every* low-margin entity/number token, but some of those are harmless: when the weak model is simply *repeating* an entity that has already been written earlier in the same response, deferring it buys no correctness — the fact is already committed on the page. The prior `gradegate` \"novelty\" experiment exempted all in-context repeated entities and reached f_weak 0.516 but only recovery 0.978 (a certified near-miss), because fully exempting repeats also lets *weak-authored wrong* entities propagate unchecked — an internal-consistency failure (the \"U-dip\": intermediate exemption strengths are non-monotonically worse than either extreme). echogate tries the *surgical* version of that idea: exempt a repeat **only when the STRONG model authored its first mention**, so the weak model is verbatim-copying a fact the strong model already committed — guaranteed-consistent by construction, and therefore (hypothesis) safe to hand to the weak model with no recovery cost.\n\n**How it works.** Identical signal surface to factgate — the scalar top1-minus-top2 `margin`, the weak tokenizer's decode of the next greedy token, and `text_so_far`. The policy tracks which spans were strong-authored vs weak-authored. An entity token whose alphanumeric core (length ≥ `min_echo_len = 3`) already appeared inside a **strong-authored** span is an \"echo\" and reverts from the fact-tier `entity_tau = 0.25` to a lower `echo_tau`; first mentions and weak-authored entities keep `entity_tau`. Two arms probe the exemption strength, both paired against the factgate anchor on identical n=100 prompts (base tau=0.10, entity_tau=0.25, span_max=64, sentence-aligned handbacks):\n- **`echobase`** — `echo_tau = 0.10` (= base tau): a strong-authored echo is demoted to the ordinary-word threshold, so the weak model writes it unless it is *very* unsure.\n- **`echofull`** — `echo_tau = 0.0`: a strong-authored echo is never deferred (fully exempt).\n\n**What happened (n=100, single paired draw — the anchor landed noise-low at rec 0.919 vs the certified 1.058, so read the PAIRED deltas, not the absolute levels; common judge/vLLM variance cancels within the draw).**\n- anchor (=factgate): U 0.4771, f_weak 0.4902, recovery 0.9192, 1428 defers.\n- **echobase**: U 0.4912, f_weak 0.4936, recovery 0.9689, 1445 defers → paired **+0.0034 f_weak, +0.050 recovery, +0.014 U** over anchor. Directionally safe (all three axes non-negative), but the f_weak lift is only ~17 extra weak tokens across 100 responses.\n- **echofull**: U 0.4671, f_weak 0.4994, recovery 0.884, 1447 defers → paired **+0.009 f_weak but −0.035 recovery** — recovery falls, reproducing the gradegate consistency dip.\n\n**Verdict: negative / lever closed.** The strong-anchored-echo exemption is the *right* mechanism — restricting the exemption to strong-authored first mentions keeps recovery non-negative (echobase), unlike the blanket repeat exemption that dips it — but it is **negligible in magnitude**: strong-authored entity echoes are simply too rare in alpaca_eval responses to move f_weak more than ~0.003, well inside noise. Pushing the exemption harder (echofull, exempting even weak-authored implied repeats) immediately re-enters the U-dip (recovery 0.97→0.88). Combined with gradegate's novelty near-miss, this exhausts entity-repeat exemption as a route past factgate: repeats are both too rare to matter and bound by cross-mention consistency. I am not certifying echogate (no f_weak gain over SOTA) and am dropping the queued `confecho` weak-authored-echo variant, which would sit even deeper in the U-dip. The productive headroom, if any, is on the seam/handoff-coherence axis (span-length), not the repeat class.",
+   "title": "Strong-anchored-echo exemption is paired-safe but negligible (+0.003 f_weak); full repeat-exemption re-hits the consistency dip (rec 0.97→0.88) — the entity-repeat lever is closed",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
