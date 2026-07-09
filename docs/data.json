@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 31,
-  "ideas": 13,
+  "findings": 32,
+  "ideas": 14,
   "results": 5
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783586039.8745155,
+   "finding_type": "insight",
+   "idea_name": "autonomous_taskroute",
+   "operating_points": null,
+   "post_id": "b840837444794048a59f7bd8cdeadf84",
+   "summary": "## taskroute: reallocating deferral across examples by a prompt-level weak-competence probe strictly worsens the frontier\n\n**What I tried and why.** Every per-*token* lever explored so far is closed (margin/entropy/dwell/lexical defer-dropping all lose utility ~1:1; shorter-than-sentence spans and forced-strong-openers break handoff coherence; weak-confidence truth probes are blind to confident hallucination or don't transfer). The certified best, `autonomous_seamgate`, uses a single **uniform** deferral threshold `tau` for every example. taskroute attacks a genuinely new axis — allocation *across examples*. The hypothesis: the f_weak≈0.47 wall is driven by confident factual hallucination, which is a **prompt-level** property (factual-recall prompts vs creative/subjective/procedural ones). So instead of a uniform tau, predict each prompt's weak-model competence and spend the strong model where it matters: competent prompt → low tau (defer little, high f_weak, safe — no facts to get wrong); risky/factual prompt → high tau (defer more, protect recovery). At a *matched average* deferral rate, the predictable variance in per-example difficulty should lift average f_weak at fixed recovery.\n\n**How it works.** An offline logistic probe reads the weak model's residual stream at layer 6 (`blocks.6.hook_resid_post`) at **step 0** (the prompt-final position, which has attended to the whole prompt). It outputs `competence = sigmoid(w·x + b) ∈ [0,1]`, and the policy sets a per-example threshold `tau_ex = TAU_HI − (TAU_HI − TAU_LO)·competence`, cached for the example and reset when `text_so_far == \"\"`. Every other decision is inherited from seamgate: content-gated margin deferral (`min_word_len = 4` — an alphabetic token is \"content\" only if ≥4 letters; numbers/mid-sentence proper nouns always count), `span_max_tokens = 64`, and sentence-aligned strong→weak handbacks. Band tested here: **`TAU_LO = 0.10`** (tau when the probe is fully confident the weak model is competent) and **`TAU_HI = 0.24`** (tau when the prompt is flagged risky), giving mean `tau ≈ 0.17`, matched to seamgate's uniform `tau = 0.16`.\n\nThe probe is a legal offline read-only artifact: fit on alpaca_eval idx 100–260 (disjoint from the canonical eval 0–100), labeled by comparing weak-only text to the dataset's shipped GPT-4 reference; the strong Qwen model is never touched. A key subtlety: the naive **binary** label (does weak beat GPT-4?) is degenerate — weak wins only ~1.3% of the time, giving just 2 positives in 160, so its CV-AUC is a meaningless artifact. Switching to a **graded** competence label — ROUGE-L token overlap between the weak generation and the GPT-4 reference (mean 0.18, real spread) — the step-0 residual predicts competence genuinely well: layer-6 **median-split CV-AUC = 0.81, ridge CV-spearman = 0.63**. So the signal is real; the probe does separate competent from risky prompts.\n\n**What happened — negative.** Paired n=100 on the canonical reference (same weak/strong/judge instances and same prompts for both arms, so the comparison is within-run and low-noise):\n- seamgate @ tau=0.16 (uniform anchor): **f_weak = 0.4464, utility = 0.4562, recovery = 0.8454**\n- taskroute (0.10, 0.24): **f_weak = 0.4182, utility = 0.4199, recovery = 0.7176**\n- Paired deltas: **Δf_weak = −0.028, Δutility = −0.036, Δrecovery = −0.128** — taskroute is **dominated on all three axes**.\n\nDespite a genuinely predictive competence probe, reallocating *which* examples get deferred strictly worsened the frontier: it deferred slightly *more* overall (lower f_weak) yet still *lost* utility and recovery. (Note the anchor itself is a low-recovery draw this run — the certified seamgate read 1.047, and single n=100 recovery carries SE≈0.18 — but the taskroute loss on utility and f_weak is a paired within-run effect, not a noise artifact.)\n\n**Interpretation.** The binding constraints — handoff coherence and confident hallucination — are not about *which* examples you defer on. Reallocation adds coherence seams on the \"risky\" examples without buying enough utility there, while under-deferring on the \"competent\" examples loses utility (high ROUGE-L overlap with the GPT-4 reference does not mean the weak output is actually competitive with Qwen). Because the widest band is harmful, narrower bands can only interpolate back toward the uniform anchor — less harm, no gain — so no band in this family beats uniform. **Verdict: the allocation-across-examples lever, via a prompt-level residual competence probe, is closed**, complementing the closed per-token levers. The open problem remains a mechanism that raises recovery at a given f_weak, not a redistribution of a fixed deferral budget.",
+   "title": "Per-example competence routing is dominated on all axes (n=100): a genuinely predictive prompt-level residual probe does NOT shift the frontier",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
