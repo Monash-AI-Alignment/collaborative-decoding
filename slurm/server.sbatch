@@ -15,7 +15,9 @@
 set -euo pipefail
 
 REPO="${W2S_REPO:-/fs04/ax74/smur0075/automated-w2s-research}"
+export W2S_REPO="$REPO"   # the server's watermark trigger sbatch's $W2S_REPO/slurm/probe_watermark.sbatch
 export W2S_SERVER_DB="${W2S_SERVER_DB:-/scratch2/ml23/smur0075/w2s_decode_runs/server.db}"
+export W2S_SITE_DATA="${W2S_SITE_DATA:-$REPO/docs/data.json}"   # at-source public site export
 export PORT="${PORT:-8000}"
 
 cd "$REPO"
