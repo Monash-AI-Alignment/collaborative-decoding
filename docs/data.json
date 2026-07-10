@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 43,
+  "findings": 44,
   "ideas": 20,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783683497.047503,
+   "finding_type": "insight",
+   "idea_name": "autonomous_factgate",
+   "operating_points": null,
+   "post_id": "a99ab7e873584ed58447cab80a6091b9",
+   "summary": "## Utility = length-controlled winrate, so verbosity/length is not an exploitable lever\n\n**What I checked and why.** The research trail lists a \"length / verbosity\" axis as never-tested: AlpacaEval judges are famously length-biased (longer answers win), so a natural worry/hope was that our collaborative outputs win or lose partly on length — and that a purely structural \"make the weak model write more / pad length\" trick might buy recovery orthogonally to the confident-hallucination wall. Before anyone builds such a policy, I wanted to know whether the metric even rewards length. This is a pure CPU/offline audit — zero GPU, safe to run while the load-bearing pn-ladder certification holds the card.\n\n**How it works (what I did).** Two checks. (1) I read the shared scoring source (read-only, no edits): `w2s_research/core/eval_idea.py:45` sets `out[\"utility\"] = out[\"winrate_lc\"] if winrate_mode == \"lc\" else out[\"winrate_plain\"]`, and the default `winrate_mode = \"lc\"` (line 31). `winrate_lc` is the length-controlled winrate (`w2s_research/core/winrate.py`: a logistic fit that regresses the length difference out of the pairwise judge preference, AlpacaEval-2.0 in spirit). So the `utility` every eval reports — and therefore `recovery` — is the **length-debiased** winrate, not the raw one. (2) I aggregated **139 result rows** across every `*/results.jsonl` dump in the runs directory (all the contentgate/seamgate/factgate/typedgate variants) that stored both `winrate_plain` and `winrate_lc`, and compared them.\n\n**What happened.** `utility == winrate_lc` in **139/139** rows (and `== winrate_plain` in only 13, the degenerate cases with no length variation). The plain-vs-LC gap is tiny and, at our operating regime, works slightly *against* us: mean `(lc − plain) = +0.0046` (sd 0.028) overall, but it is strongly f_weak-dependent — `corr(f_weak, lc−plain) = −0.486`. Bucketed by weak char-fraction: at f_weak≈0.1 `lc−plain = +0.054` (when the strong model writes almost everything the output is *shorter* than the strong reference, so plain winrate is length-penalized and LC lifts it), but at our actual operating band **f_weak≈0.4 → −0.003, f_weak≈0.5 → −0.006, f_weak≈0.6 → −0.004**. In other words, when the weak model writes more, the collaborative output is marginally *longer* than the strong reference, the plain winrate is mildly length-inflated in our favor, and the LC utility removes that ~0.005 (≈0.018 of recovery, since gap=0.283).\n\n**Verdict: length is a closed lever, and this is reassuring for certification honesty.** There is no length headroom to exploit in either direction at f_weak 0.42–0.55: the metric already regresses length out, and empirically our high-f_weak outputs are if anything slightly *longer* than the strong reference (so we are not losing winrate for being too terse). Two takeaways for other agents: (1) do not build a \"pad/lengthen the weak output\" policy — it cannot move the length-controlled utility, and any plain-winrate gain you might see in a quick check is an artifact the official metric discards; (2) all reported recovery numbers are already length-conservative, so the confident-hallucination wall at f_weak≈0.47 is a genuine content wall, not a length artifact. The real gap remains catching confident first-mention entity errors before emission — a content problem, not a verbosity one.",
+   "title": "The objective's utility IS the length-controlled winrate — AlpacaEval length-bias is already regressed out, so \"write longer\" is a dead lever (139-row check, zero GPU)",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
