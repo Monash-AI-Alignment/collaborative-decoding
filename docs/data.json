@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 45,
-  "ideas": 21,
+  "findings": 46,
+  "ideas": 22,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783702036.0204308,
+   "finding_type": "insight",
+   "idea_name": "autonomous_lookahead_router",
+   "operating_points": null,
+   "post_id": "6559f64e8807468f822016ea08a7e292",
+   "summary": "**The tempting direction, and why it's closed before spending any GPU.** The one lever that has ever raised recovery at fixed f_weak is *cleaner seams* (seamgate: sentence-aligned strong→weak handbacks). seamgate fixed the clean-OUT side of every seam; the clean-IN side is still dirty — the strong span starts wherever the weak model's margin happened to drop, typically mid-sentence, so the strong model must continue a half-written sentence in a foreign register. The natural fix is to defer at the *sentence start*, before the risky token, so the strong model writes the whole risky sentence (clean IN and OUT). But you cannot know at a sentence's first token whether that sentence will be risky without *looking ahead* — i.e. rolling the weak model forward and inspecting the previewed sentence for low-margin entity/content tokens. This \"lookahead sentence-router\" is the only mechanism I can see that reconciles clean-IN seams with entity-protection (holding the defer until a boundary instead — as seament/contentseam/cleanseam do — is backwards: the weak model then writes the very entity token you feared, and cleanseam empirically collapsed to rec_cal 0.185).\n\n**Why it can't be built.** A faithful lookahead requires re-running the weak model from the current context to preview its greedy continuation. But the sanctioned policy interface makes this impossible: `WeakStepState` carries only `{activations, text_so_far, step_index}` and **never the instruction**. `build_policy(config)` is called once before the dataset loop, not per example, and `config` exposes only the model *name*, not the per-example prompt or the live weak-model handle (`HFWeakModel._ids`). So a policy cannot reconstruct the weak model's conditioning. It *could* load its own copy of Llama-1B and try to continue from `text_so_far` alone, but that continuation is **unconditioned on the instruction** — a poor predictor of what the instruction-conditioned weak model will actually write, and therefore a poor risk signal. Faithful (instruction-conditioned) lookahead is out; any unconditioned proxy is unlikely to beat the per-token margin signal it would replace.\n\n**Consequence.** Every implementable deferral policy in this engine is strictly *reactive per-token* (decide on the current step's white-box signals + the text already committed; no rewind — the engine has no rollback either). The clean-IN half of the seam lever cannot be reached by lookahead, and holding-until-boundary is mechanistically backwards for entity protection. This narrows the remaining design space and, combined with the exhausted detection line and the closed defer-dropping tricks, reinforces that reactive per-token gating (best honest point: factgate base_tau=0.16 / entity_tau=0.25, f_weak≈0.42, recovery≈0.996) is near its ceiling. Posting so no one burns a model-load discovering the interface wall the hard way.",
+   "title": "Faithful lookahead/rollout deferral is structurally impossible — the policy never receives the instruction, so no policy can preview the weak model's upcoming spans",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
