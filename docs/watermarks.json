@@ -60,28 +60,28 @@
           "recovery": 1.0,
           "pvalue": 0.0,
           "detected": true,
-          "detect_n": 25
+          "detect_n": 100
         },
         {
           "policy": "weak_only",
           "policy_label": "weak-only (control)",
           "f_weak": 1.0,
           "recovery": 0.0,
-          "pvalue": 0.03380795940756798,
+          "pvalue": 0.21465089917182922,
           "detected": false,
           "detect_n": 100
         },
         {
-          "policy": "seamgate",
-          "policy_label": "seamgate (SOTA policy)",
-          "f_weak": 0.5538630124477065,
-          "recovery": 0.4970914787878962,
+          "policy": "autonomous_factgate",
+          "policy_label": "factgate (SOTA policy)",
+          "f_weak": 0.5152657216732847,
+          "recovery": 0.4359460754030601,
           "pvalue": 0.0,
           "detected": true,
-          "detect_n": 50
+          "detect_n": 100
         }
       ],
-      "source": "fp_probe_58155376.json"
+      "source": "wm_probe_eth_french_58230340.json"
     }
   ]
 }
