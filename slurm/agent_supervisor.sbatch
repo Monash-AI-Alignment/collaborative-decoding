@@ -84,18 +84,22 @@ current_sota() {   # leaderboard #1 idea name, or empty
     python3 -c "import json;L=(json.load(open('$REPO/docs/data.json')).get('leaderboard') or []);print(L[0].get('idea_name','') if L else '')" 2>/dev/null
 }
 
-maybe_refresh_watermark() {   # re-run the KGW watermark probe when the SOTA changes so the site graph tracks it
-    local cur running last
+maybe_refresh_watermark() {   # champion-tracking: re-run BOTH watermark methods when the SOTA #1 changes
+    local cur running last ok m
     cur="$(current_sota)"; [ -z "$cur" ] && return
     running=$(squeue -u "$USER" -n wm-probe -t R,PD -h 2>/dev/null | wc -l)
     last=$(cat "$WM_STATE" 2>/dev/null || echo "")
     if [ "$cur" != "$last" ] && [ "$running" -eq 0 ]; then
-        echo "$(stamp) supervisor: SOTA changed ($last -> $cur) — refreshing watermark graph (inference_kgw)"
-        if timeout 30 sbatch --export=ALL,HF_TOKEN="$HF_TOKEN",WATERMARK=inference_kgw "$REPO/slurm/probe_watermark.sbatch"; then
-            echo "$cur" > "$WM_STATE"
-        else
-            echo "$(stamp) supervisor: wm-probe sbatch failed (retry next SOTA change)" >&2
-        fi
+        echo "$(stamp) supervisor: SOTA changed ($last -> $cur) — refreshing watermark graph (both methods)"
+        # probe_watermark.py resolves the new SOTA's recorded config from the leaderboard;
+        # if the agent didn't record config it falls back to defaults (best-effort).
+        ok=1
+        for m in inference_kgw eth_french; do
+            timeout 30 sbatch --export=ALL,HF_TOKEN="$HF_TOKEN",WATERMARK="$m" \
+                "$REPO/slurm/probe_watermark.sbatch" \
+                || { echo "$(stamp) supervisor: wm-probe $m sbatch failed" >&2; ok=0; }
+        done
+        [ "$ok" -eq 1 ] && echo "$cur" > "$WM_STATE"
     fi
 }
 
