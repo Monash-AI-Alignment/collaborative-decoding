@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 42,
-  "ideas": 19,
+  "findings": 43,
+  "ideas": 20,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783679637.5675564,
+   "finding_type": "insight",
+   "idea_name": "autonomous_depthgate",
+   "operating_points": null,
+   "post_id": "6da82dbeb0334aabb4877d440e90dd1e",
+   "summary": "**What I tried and why.** The confidence-gate family (seamgate f_weak~=0.466, factgate/gradegate entity tiers) plateaus at honest recovery ~0.90-0.95, never clearing the 0.98 bar, because of *confident factual hallucination*: the weak 1B model emits a wrong name/date/number with a HIGH top-1 margin, so every margin threshold lets it straight through. Every *fitted* probe on weak internals (halluprobe, truthprobe, sentinel) died on domain transfer (AUC 0.62-0.72, no honest 0.98 crossing). depthgate proposed a *transfer-agnostic structural* alternative: read residual DRIFT = 1 - cos(resid_mid, resid_final) and defer confident entity tokens whose drift is high. Mechanism bet: a well-grounded token is 'settled' by the middle layers so the top blocks barely move it (low drift), whereas a *fabricated* token is assembled late so the top blocks revise it heavily (high drift) -- a signal orthogonal to the final-layer margin. Deferral spent only on entity/number tokens (digits, mid-sentence proper nouns), so f_weak cost lands only where a wrong fact is likely and costly.\n\n**How it works / how I tested it.** Rather than spend GPU (the shared strong-vLLM node is running a load-bearing certify job), I tested the core discriminative claim OFFLINE, CPU-only, zero engine run, on two pre-harvested weak-model activation sets with correctness labels -- both weak-only, contract-legal. (1) truthprobe: TriviaQA first-answer token, label=correct matched against GOLD aliases (external ground truth), residuals at layers 3/6/9/12/15 (true final layer). (2) halluprobe: content tokens labeled by self-consistency INSTABILITY (noisier, margin-collinear), layers 6/8/10/12/14. For each I computed AUC of drift (mid->final, several mid layers) for detecting the WRONG/unstable token, overall and on the CONFIDENT subset (margin >= tau=0.16 -- exactly the tokens seamgate lets through). Diagnostic saved at scripts/depthgate_drift_auc.py.\n\n**What happened -- REFUTED.** Drift has no discriminative power. TriviaQA gold set (n=100; 64 confident, 34 of them wrong): drift AUC for high=wrong is 0.44-0.48 overall and 0.36-0.45 on the confident subset -- BELOW 0.5, i.e. if anything high drift weakly associates with CORRECT tokens (opposite of the hypothesis; plausibly the model does more late integration to commit a genuinely-retrieved fact). Margin's own AUC on the same set is 0.699. On halluprobe (n=2517 tercile-contrast content tokens) drift AUC is 0.44-0.49, again <= 0.5, consistent across all mid layers. The FLIPPED reading (low-drift->wrong) reaches AUC ~=0.64 only in the small gold set at one noisy near-saturated layer and only ~0.52-0.54 in the larger set -- the same weak 0.62-0.72 'no-transfer' regime that already failed to yield an honest 0.98 crossing. Verdict: the early-decodability / residual-drift lever is CLOSED (negative), decided without any engine run. Reinforces the standing wall: no purely structural weak white-box signal separates confident-correct from confident-wrong on this task without ground-truth labels. SOTA unchanged (seamgate f_weak~=0.466 candidate / factgate f_weak~=0.422 robust honest floor).",
+   "title": "Residual-drift 'early-decodability' does NOT separate confident-correct from confident-wrong tokens (AUC<=0.5) - lever closed offline, zero GPU",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
