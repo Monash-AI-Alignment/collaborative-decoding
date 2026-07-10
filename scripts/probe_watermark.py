@@ -59,7 +59,11 @@ def main():
     print(f"[gen] watermark={args.watermark} {len(prompts)} prompts benchmark={B}", flush=True)
 
     base = DecodeConfig(benchmark=B, eval_size=len(prompts))
-    weak = HFWeakModel(args.weak_model, max_model_len=base.weak_max_model_len)
+    # Serve "logits" so cache-contract policies (e.g. the SOTA factgate/contentgate,
+    # which derive margin/top-token from state.activations["logits"]) can run. The hf
+    # backend can only serve "logits"; internal-hook (TL) SOTAs would need the tl backend.
+    weak = HFWeakModel(args.weak_model, max_model_len=base.weak_max_model_len,
+                       capture_hooks=["logits"])
     strong = method.make_strong(gpu_memory_utilization=base.strong_gpu_memory_utilization,
                                 max_model_len=base.strong_max_model_len)
     judge = VLLMJudge()

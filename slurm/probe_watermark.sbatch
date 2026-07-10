@@ -31,7 +31,7 @@ export CG_TAU="${CG_TAU:-0.16}"
 export SPAN_MAX_TOKENS="${SPAN_MAX_TOKENS:-64}"
 
 WATERMARK="${WATERMARK:-inference_kgw}"
-POLICIES="${POLICIES:-strong_only,weak_only,seamgate}"
+POLICIES="${POLICIES:-strong_only,weak_only,sota}"   # 'sota' = live leaderboard #1 (dynamic, not hardcoded)
 PROBE_N="${PROBE_N:-100}"
 RUNDIR=/scratch2/ml23/smur0075/w2s_decode_runs
 GENS="$RUNDIR/wm_gens_${WATERMARK}_${SLURM_JOB_ID}.json"

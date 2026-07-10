@@ -216,7 +216,10 @@ def main():
 
     base = DecodeConfig(benchmark=bench, eval_size=n)
     print("[search] loading weak (HF)...", flush=True)
-    weak = HFWeakModel(base.weak_model, max_model_len=base.weak_max_model_len)
+    # Serve "logits" so cache-contract policies can derive margin/entropy/top-token from
+    # state.activations["logits"] (the hf backend serves only "logits"; internal hooks need tl).
+    weak = HFWeakModel(base.weak_model, max_model_len=base.weak_max_model_len,
+                       capture_hooks=["logits"])
     print("[search] loading strong (vLLM)...", flush=True)
     strong = VLLMStrongModel(base.strong_model,
                              gpu_memory_utilization=base.strong_gpu_memory_utilization,

@@ -78,12 +78,34 @@ publish() {
     fi
 }
 
+WM_STATE="${WM_STATE_FILE:-/fs04/scratch2/ax74/smur0075/venvs/.wm_last_sota}"
+
+current_sota() {   # leaderboard #1 idea name, or empty
+    python3 -c "import json;L=(json.load(open('$REPO/docs/data.json')).get('leaderboard') or []);print(L[0].get('idea_name','') if L else '')" 2>/dev/null
+}
+
+maybe_refresh_watermark() {   # re-run the KGW watermark probe when the SOTA changes so the site graph tracks it
+    local cur running last
+    cur="$(current_sota)"; [ -z "$cur" ] && return
+    running=$(squeue -u "$USER" -n wm-probe -t R,PD -h 2>/dev/null | wc -l)
+    last=$(cat "$WM_STATE" 2>/dev/null || echo "")
+    if [ "$cur" != "$last" ] && [ "$running" -eq 0 ]; then
+        echo "$(stamp) supervisor: SOTA changed ($last -> $cur) — refreshing watermark graph (inference_kgw)"
+        if timeout 30 sbatch --export=ALL,HF_TOKEN="$HF_TOKEN",WATERMARK=inference_kgw "$REPO/slurm/probe_watermark.sbatch"; then
+            echo "$cur" > "$WM_STATE"
+        else
+            echo "$(stamp) supervisor: wm-probe sbatch failed (retry next SOTA change)" >&2
+        fi
+    fi
+}
+
 echo "=== collab-supervisor job ${SLURM_JOB_ID:-?} @ $(stamp) N_AGENTS=$N_AGENTS interval=${INTERVAL}s venv=$AGENT_VENV ==="
 while true; do
     ensure_server
     URL="$(server_url)"
     ensure_agents "$URL"
-    publish
+    publish                    # push data.json/watermarks.json when they change
+    maybe_refresh_watermark    # re-run the watermark probe when a new SOTA is certified
     # background sleep + wait so the USR1 self-chain trap fires promptly
     sleep "$INTERVAL" & wait $!
 done
