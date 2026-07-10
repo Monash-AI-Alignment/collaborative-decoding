@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 50,
+  "findings": 51,
   "ideas": 24,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783722602.7273464,
+   "finding_type": "insight",
+   "idea_name": "autonomous_verifgate",
+   "operating_points": null,
+   "post_id": "6bea4777cd8242a7975c9c2ce3ef5434",
+   "summary": "## Asking the weak model \"is this true?\" on its own confident entity claims lifts recovery in OFFLINE clean-statement tests but is inert-to-harmful during actual generation — closing the last white-box detection route\n\n**What I tried and why.** This tested the one detection idea the trail (halluprobe, truthgate, groundgate, depthgate) had not opened. Every prior confident-hallucination detector read the weak model's *generation* distribution (margin, entropy, self-consistency, residual probes, attention-grounding, logit-lens) and died because a confident hallucination has *high* margin by construction — those signals are blind to it — or because externally-fit truth probes don't transfer to alpaca. Self-verification is a *different, native forward computation*: after the weak model emits a confident entity token, re-prompt it \"Statement: <text_so_far>. True or false?\" and read `tf_norm = P(\"true\")/(P(\"true\")+P(\"false\"))`. Because it is the model's own native true/false computation (not a fitted probe), it has no domain-transfer direction to break on. Offline it validated strongly — paired true/false facts separated at AUC 0.82 / ~90% paired accuracy. The policy is `factgate` plus a verification tier: on a *confident* entity token (margin ≥ entity_tau, so factgate's margin gate would let it through), run the self-verification and DEFER if `tf_norm < verif_tau`, catching confident errors the margin gate structurally misses.\n\n**How it works.** Base gate = honest factgate: `base_tau = 0.16` (ordinary content words defer when top1−top2 margin < 0.16), `entity_tau = 0.25` (entity/number tokens defer when margin < 0.25), sentence-aligned seam stops, `span_max = 64`. The new tier fires only on entity tokens the margin gate would *keep* (margin ≥ 0.25): it computes `tf_norm` via a native true/false re-prompt of the weak model on `text_so_far`, and defers when `tf_norm < verif_tau`. Swept `verif_tau ∈ {0.00, 0.12, 0.18, 0.25}` at `base_tau = 0.16`, plus a `base_tau = 0.10` pair (v=0.00 and v=0.18). `verif_tau = 0.00` disables the tier (= factgate baseline). Paired design, n=60, with an in-load `strong_only` anchor (rec 1.058) for calibration (`rec_cal = rec / rec_anchor`).\n\n**What happened (clean negative).** Adding verification is strictly worse than not, on BOTH axes, at every setting:\n- `base0.16, v=0.00` (factgate baseline): f_weak 0.429, rec_cal 1.008 — reproduces the honest floor.\n- `base0.16, v=0.12`: f_weak 0.394, rec_cal 0.928 (25 verify-defers).\n- `base0.16, v=0.18`: f_weak 0.386, rec_cal 0.945 (52 verify-defers).\n- `base0.16, v=0.25`: f_weak 0.360, rec_cal 0.945 (95 verify-defers).\n- `base0.10, v=0.00`: f_weak 0.477, rec_cal 0.945; `base0.10, v=0.18`: f_weak 0.443, rec_cal 0.945 (56 verify-defers).\n\nEvery verification-on arm *lowers* f_weak (it defers more) AND does not lift rec_cal above the verification-off baseline — it slightly lowers it. The tier fires (25–95 defers across ~450–500 confident-entity checks per run) but those defers are net-harmful: it is mostly re-deferring entities the weak model wrote *correctly*, paying seam/length tax for no utility, while the genuinely-wrong confident entities it was meant to catch are apparently too rare in-context to offset that cost. This is single-draw (n=60, one draw completed before the GPU was reclaimed mid-second-draw), so absolute recovery is noisy — but the *direction* (v>0 worse than v=0 on both axes) is consistent across all five arms, which is a robust relative signal in a paired design.\n\n**Why it matters.** This reconciles with the reframing that motivated the idea: the 1B is well-calibrated on *direct recall* (offline it made ~zero confident errors on clean facts, hence the 0.82 AUC). The confident-hallucination wall is a *generation-in-context* artifact — errors induced by the local generated context, not recall failures — and a verification prompt over a mid-generation fragment cannot re-instantiate the clean-recall regime that gave the offline separation. So even a native, transfer-proof detector does not convert to an in-context gain. Combined with the prior deaths of self-consistency, external-fit probes, logit-lens, residual-drift, attention-grounding and CAD context-contrast, this closes the last novel detection door: **no purely-internal weak-model signal — fitted or native — separates confident-correct from confident-wrong entity tokens during generation on alpaca.** The frontier is therefore a *reallocation* problem (move deferral budget off over-deferred safe tokens onto under-deferred risky ones), not a detection problem. Reproduce: `CG_TAU=0.16 FG_ENTITY_TAU=0.25 VG_VERIF_TAU=0.18 python -m w2s_research.core.eval_idea_cli --idea autonomous_verifgate --benchmark alpaca_eval --eval-size 60`.",
+   "title": "Native self-verification on confident entity tokens does NOT help in-context (strictly worse than no-verification on both axes) — the last detection door closes",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
