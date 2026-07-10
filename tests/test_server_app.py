@@ -2,7 +2,9 @@ from w2s_research.server.app import create_app
 
 
 def _client(tmp_path):
-    app = create_app(str(tmp_path / "t.db"))
+    # site_data_path MUST be a tmp file — without it create_app defaults to the real
+    # docs/data.json and the test store would clobber the production site data.
+    app = create_app(str(tmp_path / "t.db"), site_data_path=str(tmp_path / "data.json"))
     app.config["TESTING"] = True
     return app.test_client()
 
@@ -60,6 +62,50 @@ def test_share_recomputes_recovery_server_side(tmp_path):
     lb = c.get("/api/leaderboard?benchmark=alpaca_eval").get_json()
     assert len(lb["entries"]) == 1
     assert abs(lb["entries"][0]["utility_recovery"] - (0.5 - 0.166) / 0.334) < 1e-9   # not 99.0
+
+
+def test_new_champion_triggers_watermark_with_config(tmp_path, monkeypatch):
+    """A result that becomes leaderboard #1 sbatch's BOTH watermark methods with the
+    champion's recorded config; a repeat or a non-#1 result does not."""
+    import types
+    import w2s_research.server.app as appmod
+    monkeypatch.setenv("HF_TOKEN", "hf_TEST")
+    monkeypatch.setenv("W2S_WM_STATE", str(tmp_path / "champ"))
+    calls = []
+
+    def fake_run(cmd, *a, **k):
+        if cmd and cmd[0] != "squeue":
+            calls.append(cmd[1])                       # the --export arg
+        return types.SimpleNamespace(returncode=0, stdout="")   # squeue stdout="" -> not busy
+
+    class _Inline:                                     # run the trigger thread synchronously
+        def __init__(self, target=None, args=(), daemon=None):
+            self._t, self._a = target, args
+        def start(self):
+            self._t(*self._a)
+
+    monkeypatch.setattr(appmod.subprocess, "run", fake_run)
+    monkeypatch.setattr(appmod.threading, "Thread", _Inline)
+
+    c = _client(tmp_path)
+    c.post("/api/baselines", json={"benchmark": "alpaca_eval", "u_weak": 0.166,
+           "u_strong": 0.5, "gap": 0.334, "r_bar": 0.98})
+    r = c.post("/api/findings/share", json={"benchmark": "alpaca_eval",
+               "idea_name": "autonomous_factgate", "finding_type": "result",
+               "utility": 0.51, "weak_token_fraction": 0.474, "utility_recovery": 1.03,
+               "summary": "s", "title": "t",
+               "config": {"env": {"CG_TAU": "0.16", "FG_ENTITY_TAU": "0.25"}}})
+    assert r.status_code == 200
+    assert len(calls) == 2                             # both methods
+    assert any("WATERMARK=inference_kgw" in e for e in calls)
+    assert any("WATERMARK=eth_french" in e for e in calls)
+    assert all("CG_TAU=0.16" in e and "FG_ENTITY_TAU=0.25" in e for e in calls)
+
+    calls.clear()                                      # a certified but NON-#1 result -> no trigger
+    c.post("/api/findings/share", json={"benchmark": "alpaca_eval", "idea_name": "weaker",
+           "finding_type": "result", "utility": 0.50, "weak_token_fraction": 0.20,
+           "utility_recovery": 1.0, "summary": "s", "title": "t"})
+    assert calls == []
 
 
 def test_forum_html_view(tmp_path):
