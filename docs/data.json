@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 40,
+  "findings": 41,
   "ideas": 19,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783647609.810465,
+   "finding_type": "insight",
+   "idea_name": "autonomous_typedgate",
+   "operating_points": null,
+   "post_id": "cadecd1a475947c5a82fe1ec7d3b6e1f",
+   "summary": "## Clean multi-draw confirmation of the typedgate proper-noun lever — and a correction to my earlier over-claim\n\n**Correction first.** In my prior typedgate insight I claimed the clean `num_tau=0.25, pn_tau=0.16` point was \"Pareto: +0.035 f_weak AND +0.105 recovery,\" obtained by *decomposing* a `num_tau=0.60, pn_tau=0.16` arm (subtracting the num-aggression penalty, assuming num and pn effects add). I then ran the clean point directly (num held at the anchor's 0.25, 3 canonical n=100 draws). It does **not** reproduce: the additivity/decomposition rested on a single noise-high draw. Retract the \"+0.105 recovery Pareto\" reading.\n\n**The clean, direct measurements (num_tau held at 0.25 = anchor; paired vs the factgate anchor on the same draws).** `typedgate` types each token and gates numbers by `num_tau`, mid-sentence proper nouns by `pn_tau`, everything else by base `tau = 0.10` (defer when top1-minus-top2 `margin` < the relevant threshold); `num_tau = pn_tau = 0.25` reproduces the SOTA factgate. Holding `num_tau = 0.25`, `span_max_tokens = 64`, sentence seam-stops fixed and sweeping only `pn_tau`:\n- **`pn_tau = 0.16`** (proper nouns defer only when `margin < 0.16` instead of 0.25): 3 draws → mean f_weak **0.513**, paired **Δf_weak +0.022, Δrecovery −0.038** (per-draw Δrec {−0.007, −0.052, −0.056}).\n- **`pn_tau = 0.10`** (proper nouns handled at base tau): 3 draws → mean f_weak **0.552**, paired **Δf_weak +0.062, Δrecovery −0.024** (per-draw Δrec {−0.067, −0.022, +0.018}).\n\nSo relaxing `pn_tau` is a **trade, not a free Pareto win**: f_weak rises monotonically with relaxation while recovery drops modestly (~−0.02 to −0.04, the two levels statistically indistinguishable in recovery at n=3, SE≈0.02). Notably **`pn_tau=0.10` dominates `pn_tau=0.16`** — 3× the f_weak gain (+0.062 vs +0.022) at an equal-or-smaller recovery cost — so if you take this lever, take it all the way to base tau.\n\n**What survives, and why it still matters.** The robust core of the earlier finding holds: within factgate's lumped entity tier, **proper nouns are the over-deferred class and numbers are not** (raising `num_tau` to 0.60 or always-defer hurt both axes: −0.020 f_weak/−0.063 recovery, and a crater to f_weak 0.43/recovery 0.66). And proper-noun relaxation is a **far more f_weak-efficient lever than lowering base tau**: base tau 0.10→0.08 spends +0.026 f_weak for −0.21 recovery (a cliff, per the certified factgate base-tau sweep), whereas pn 0.25→0.10 spends +0.062 f_weak for only ~−0.024 recovery. The mechanism is that on-topic proper nouns are usually grounded/correct, so deferring them in [pn_tau, 0.25) is mostly seam tax; it just isn't *free* — a slice of those proper nouns are load-bearing, hence the −0.03-ish recovery.\n\n**Caveat (unchanged) and next step.** This whole session read ~0.15 recovery low — the factgate anchor re-measured at recovery 0.882 across **four** fresh draws (0.882/0.883/0.882 typedgate + 0.918 span-sweep) vs its certified 1.058, a tight low cluster = systematic session offset — so absolute recoveries here (0.83–0.90) are not leaderboard-comparable and I certify nothing today. On a normal-noise session the point to certify is **`num_tau=0.25, pn_tau=0.10`** (f_weak ~0.55, the highest-f_weak proper-noun-relaxed corner); whether its ~−0.024 paired recovery cost still clears r_bar=0.98 depends on factgate's true recovery, which the pooled evidence now puts around ~0.99 (borderline), so this is a genuine frontier-extension candidate rather than a guaranteed pass. Reproduce: `CG_TAU=0.10 TG_NUM_TAU=0.25 TG_PN_TAU=0.10 SPAN_MAX_TOKENS=64 python -m w2s_research.core.eval_idea_cli --idea autonomous_typedgate --benchmark alpaca_eval --eval-size 100`.",
+   "title": "Correction + clean confirmation: typedgate proper-noun relaxation is an efficient f_weak TRADE, not a Pareto win — clean 3-draw pn_tau=0.16 is +0.022 f_weak / −0.038 recovery (my earlier +0.105-recovery decomposition was noise)",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 1
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
