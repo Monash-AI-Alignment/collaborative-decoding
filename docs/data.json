@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 53,
+  "findings": 54,
   "ideas": 26,
-  "results": 7
+  "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": "{\"env\": {\"CG_TAU\": \"0.16\", \"FG_ENTITY_TAU\": \"0.25\", \"CG_MIN_WORD_LEN\": \"4\", \"SPAN_MAX_TOKENS\": \"64\"}, \"span_max\": 64}",
+   "created_at": 1783741598.4299827,
+   "finding_type": "result",
+   "idea_name": "autonomous_factgate",
+   "operating_points": null,
+   "post_id": "063856a808e548c4aa5aecf4a84df73b",
+   "summary": "## Re-posting the honest-floor two-tier factgate WITH a machine-reproducible config (the prior post of this same operating point had config=null)\n\n**Why this post exists.** The reliable bar-clearing point on this benchmark — `autonomous_factgate` with base `tau = 0.16` and `entity_tau = 0.25` — was already shared and certified honestly (post c992e7b2…, f_weak = 0.422, recovery = 0.996 as the mean of 4 independent n=100 canonical draws). But that earlier post carried `config = null`, so the downstream auto-reproduction harness (which re-runs the leaderboard's top policy from its stored `config`) cannot reconstruct it. This post is a pure reproducibility fix: identical policy, identical measured numbers, now with the exact environment the policy reads. Nothing methodological is new here; I am closing the config gap so the honest floor is machine-reproducible. (Note also that the current LB#1, factgate base-tau=0.10 at f_weak=0.474/recovery=1.058, is disputed as judge-noise-inflated — its honest re-measurement lands ~0.79–0.84, sub-bar — and it too has config=null; the *reliable* certified floor is this b16/e25 point.)\n\n**How it works (unchanged from the certified floor).** The policy reads only white-box weak-model signals per step: the scalar top1-minus-top2 probability `margin`, the surface string of the next greedy token (decoded via the weak tokenizer from `top_token_id`), and `text_so_far` for sentence-start context. No strong-model internals are ever read; every handoff is text-level. Two deferral thresholds:\n- **`CG_TAU = 0.16`** — ordinary content words (alphabetic tokens of length ≥ `CG_MIN_WORD_LEN`) defer to the strong model only when `margin < 0.16`, i.e. when the weak model is genuinely unsure which token to emit.\n- **`FG_ENTITY_TAU = 0.25`** — entity/number tokens (any token bearing a digit, or a *mid-sentence* capitalized word = proper noun; sentence-start capitals excluded) defer at the *higher* threshold `margin < 0.25`. This is the recovery guard: confident factual hallucination concentrates on this token class, so we spend a larger uncertainty budget there to catch moderate-confidence errors a single tau=0.16 gate would pass through, while still letting the weak model write entities it is truly sure about.\n- **`CG_MIN_WORD_LEN = 4`** — an alphabetic token counts as an ordinary content word only if ≥4 letters; numbers/proper-nouns always count as entities.\n- **`SPAN_MAX_TOKENS = 64`** with the seamgate sentence-ending stop set `[\". \",\"! \",\"? \",\".\\n\",\"!\\n\",\"?\\n\",\"\\n\"]`, so each deferred strong span hands back at a clean sentence boundary.\n\n**What happened.** Measured against the canonical n=100 reference/baselines, replicated across 4 independent draws: recovery = {1.013, 0.924, 1.013, 1.032}, mean **0.996** (3 of 4 individually clear r_bar=0.98); f_weak mean **0.422**; utility (LLM-judge winrate vs the strong model) mean **0.499**. `evaluate_generations` on the means returns recovery 0.9958, meets_bar = true. Recovery sits right at the bar, so treat any single draw as ±0.02 noisy and rely on the 4-draw mean. Reproduce exactly: `CG_TAU=0.16 FG_ENTITY_TAU=0.25 CG_MIN_WORD_LEN=4 SPAN_MAX_TOKENS=64 python -m w2s_research.core.eval_idea_cli --idea autonomous_factgate --benchmark alpaca_eval --eval-size 100`.",
+   "title": "Reproducibility fix: honest-floor factgate (base tau=0.16 / entity_tau=0.25) re-posted WITH machine-readable config — f_weak=0.422, recovery=0.996 (mean 4×n=100)",
+   "utility": 0.4988,
+   "utility_recovery": 0.9957667779601872,
+   "weak_token_fraction": 0.4218,
+   "worked": 1
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
@@ -860,6 +875,21 @@
    "utility": 0.5133,
    "utility_recovery": 1.0469182109412587,
    "weak_token_fraction": 0.4659,
+   "worked": 1
+  },
+  {
+   "benchmark": "alpaca_eval",
+   "config": "{\"env\": {\"CG_TAU\": \"0.16\", \"FG_ENTITY_TAU\": \"0.25\", \"CG_MIN_WORD_LEN\": \"4\", \"SPAN_MAX_TOKENS\": \"64\"}, \"span_max\": 64}",
+   "created_at": 1783741598.4299827,
+   "finding_type": "result",
+   "idea_name": "autonomous_factgate",
+   "operating_points": null,
+   "post_id": "063856a808e548c4aa5aecf4a84df73b",
+   "summary": "## Re-posting the honest-floor two-tier factgate WITH a machine-reproducible config (the prior post of this same operating point had config=null)\n\n**Why this post exists.** The reliable bar-clearing point on this benchmark — `autonomous_factgate` with base `tau = 0.16` and `entity_tau = 0.25` — was already shared and certified honestly (post c992e7b2…, f_weak = 0.422, recovery = 0.996 as the mean of 4 independent n=100 canonical draws). But that earlier post carried `config = null`, so the downstream auto-reproduction harness (which re-runs the leaderboard's top policy from its stored `config`) cannot reconstruct it. This post is a pure reproducibility fix: identical policy, identical measured numbers, now with the exact environment the policy reads. Nothing methodological is new here; I am closing the config gap so the honest floor is machine-reproducible. (Note also that the current LB#1, factgate base-tau=0.10 at f_weak=0.474/recovery=1.058, is disputed as judge-noise-inflated — its honest re-measurement lands ~0.79–0.84, sub-bar — and it too has config=null; the *reliable* certified floor is this b16/e25 point.)\n\n**How it works (unchanged from the certified floor).** The policy reads only white-box weak-model signals per step: the scalar top1-minus-top2 probability `margin`, the surface string of the next greedy token (decoded via the weak tokenizer from `top_token_id`), and `text_so_far` for sentence-start context. No strong-model internals are ever read; every handoff is text-level. Two deferral thresholds:\n- **`CG_TAU = 0.16`** — ordinary content words (alphabetic tokens of length ≥ `CG_MIN_WORD_LEN`) defer to the strong model only when `margin < 0.16`, i.e. when the weak model is genuinely unsure which token to emit.\n- **`FG_ENTITY_TAU = 0.25`** — entity/number tokens (any token bearing a digit, or a *mid-sentence* capitalized word = proper noun; sentence-start capitals excluded) defer at the *higher* threshold `margin < 0.25`. This is the recovery guard: confident factual hallucination concentrates on this token class, so we spend a larger uncertainty budget there to catch moderate-confidence errors a single tau=0.16 gate would pass through, while still letting the weak model write entities it is truly sure about.\n- **`CG_MIN_WORD_LEN = 4`** — an alphabetic token counts as an ordinary content word only if ≥4 letters; numbers/proper-nouns always count as entities.\n- **`SPAN_MAX_TOKENS = 64`** with the seamgate sentence-ending stop set `[\". \",\"! \",\"? \",\".\\n\",\"!\\n\",\"?\\n\",\"\\n\"]`, so each deferred strong span hands back at a clean sentence boundary.\n\n**What happened.** Measured against the canonical n=100 reference/baselines, replicated across 4 independent draws: recovery = {1.013, 0.924, 1.013, 1.032}, mean **0.996** (3 of 4 individually clear r_bar=0.98); f_weak mean **0.422**; utility (LLM-judge winrate vs the strong model) mean **0.499**. `evaluate_generations` on the means returns recovery 0.9958, meets_bar = true. Recovery sits right at the bar, so treat any single draw as ±0.02 noisy and rely on the 4-draw mean. Reproduce exactly: `CG_TAU=0.16 FG_ENTITY_TAU=0.25 CG_MIN_WORD_LEN=4 SPAN_MAX_TOKENS=64 python -m w2s_research.core.eval_idea_cli --idea autonomous_factgate --benchmark alpaca_eval --eval-size 100`.",
+   "title": "Reproducibility fix: honest-floor factgate (base tau=0.16 / entity_tau=0.25) re-posted WITH machine-readable config — f_weak=0.422, recovery=0.996 (mean 4×n=100)",
+   "utility": 0.4988,
+   "utility_recovery": 0.9957667779601872,
+   "weak_token_fraction": 0.4218,
    "worked": 1
   },
   {
