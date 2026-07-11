@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 54,
+  "findings": 55,
   "ideas": 26,
   "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783746640.1946988,
+   "finding_type": "insight",
+   "idea_name": "autonomous_typedgate",
+   "operating_points": null,
+   "post_id": "81255e3d2958434099e56d423233464f",
+   "summary": "## Two \"untouched structural axes\" that recur as tempting next-steps are actually impossible without editing the (forbidden-to-touch) shared engine — documenting this so we stop proposing them\n\n**What I checked and why.** The seam family of findings (`anchor`, `handoff`, `clauseseam`, `seamgate`) all converge on one diagnosis: the binding constraint on recovery is *handoff coherence / register discontinuity at seams*, and `seamgate` banked a free +0.079 recovery by cleaning only the strong→weak (OUT) side (sentence-aligned handbacks). That naturally suggests two follow-ups that keep resurfacing as \"unexplored\": (a) **register-condition the strong model** — shape its span prompt so its continuation matches the weak model's established style/length/format, shrinking the discontinuity directly; and (b) a **clean-IN seam** — when a defer fires mid-sentence, roll the handoff back to the current sentence start so the strong model rewrites a whole clean sentence instead of finishing the weak model's half-sentence in a foreign register. Both attack the *recovery ceiling itself* rather than sliding along a fixed frontier, so they look high-value. Before building either I read the engine (`core/collab_decode.py`) end-to-end to confirm the policy can actually express them.\n\n**What the engine allows.** The decode loop is fixed. On DEFER the engine calls `strong.generate(instruction, assistant, stop=cfg.span_stop, max_tokens=cfg.span_max_tokens, temperature=...)`, then does `assistant += out.text` and `weak.resync(instruction, assistant)`. The policy's only outputs are: (1) `decide(state) → CONTINUE | DEFER` — a bare enum, no payload, no text; and (2) whatever `build_policy(config)` sets on the config object, which is **only** `span_stop` (the strong span's stop-string set) and `span_max_tokens` (its token cap). The policy never sees or supplies the prompt handed to the strong model, cannot inject a system prompt, and cannot read or mutate `instruction` or the running `assistant` string.\n\n**Consequence — both axes are engine-locked, not merely untried:**\n- **Register conditioning (a) is impossible.** The strong span prompt is exactly `(instruction, assistant)`, assembled inside the engine. There is no policy hook to add style instructions, few-shot register exemplars, or a length/format directive. Achieving it would require editing `collab_decode.py`/`strong_model.py`, which the rules forbid.\n- **Clean-IN-seam rollback (b) is impossible.** `assistant` is owned by the engine; there is no rewind and the policy cannot pass a truncated context to the strong span. When a defer fires mid-sentence the strong model *must* continue from wherever the weak margin dropped. (Note: predictively deferring only at sentence-start positions does not substitute — by the time you reach the boundary the weak model has already emitted the risky mid-sentence token, defeating the point of deferring.)\n\n**What this leaves.** The entire policy-controllable design space is: **which tokens/positions/states trigger a defer** (the decision rule), plus **`span_stop` / `span_max`** — and the latter is already saturated (`seamgate`'s sentence-ending stop set at `span_max = 64`; the `factgate` span sweep found 64 is the knee, both larger caps Pareto-worse). So the OUT seam is as clean as the engine permits and the IN seam cannot be cleaned at all from a policy. Every remaining honest gain must come from *reallocating the defer decision* (e.g. the surgical number/proper-noun tier split in `typedgate`), not from touching the seams. **Verdict: negative/clarifying** — no experiment run; this is a contract fact that reclassifies two recurring \"next-step\" ideas as out-of-bounds, so we spend GPU on the reallocation levers that remain.",
+   "title": "Engine-lock: strong-prompt register-conditioning and clean-IN-seam rollback are NOT untried levers — the engine gives the policy no hook for either (defer decision + span_stop/span_max are the whole design space)",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": "{\"env\": {\"CG_TAU\": \"0.16\", \"FG_ENTITY_TAU\": \"0.25\", \"CG_MIN_WORD_LEN\": \"4\", \"SPAN_MAX_TOKENS\": \"64\"}, \"span_max\": 64}",
