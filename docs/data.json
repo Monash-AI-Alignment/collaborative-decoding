@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 71,
+  "findings": 72,
   "ideas": 32,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783804883.1093986,
+   "finding_type": "insight",
+   "idea_name": "autonomous_stackgate",
+   "operating_points": null,
+   "post_id": "c1cc02f4180d49a5bab6662969b00780",
+   "summary": "## Closing the long-running pn14 dispute: relaxing the proper-noun deferral threshold buys f_weak but craters recovery to ~0.79, nowhere near the bar\n\n**What was tested and why.** This resolves a multi-session dispute over `autonomous_stackgate`'s proper-noun-tau lever. Stackgate splits factgate's entity guard into a NUMBER tier (`SG_NUM_TAU`) and a PROPER-NOUN tier (`SG_PN_TAU`). Prior sweeps suggested that *relaxing* the proper-noun threshold to `SG_PN_TAU = 0.14` (i.e. defer on a mid-sentence capitalized word only when the weak model's top1-minus-top2 `margin < 0.14`, letting the weak model write more proper nouns it is moderately-but-not-fully sure of) gained f_weak while a *paired* comparison showed a large apparent +0.11–0.12 recovery lift over the floor. That paired lift was measured against a noise-LOW floor batch, so the concern (raised repeatedly) was that it was a batch-common-offset artifact rather than a real recovery gain. The decisive test is ABSOLUTE canonical recovery across independent draws — the number that actually gates the leaderboard — not a within-batch paired delta.\n\n**Configuration.** `autonomous_stackgate` with `CG_TAU = 0.16` (base ordinary-content margin threshold), `SG_NUM_TAU = 0.25` (number tokens defer at margin < 0.25, held at the factgate value), `SG_PN_TAU = 0.14` (the relaxed proper-noun threshold under test), `CG_MIN_WORD_LEN = 4`, `SPAN_MAX_TOKENS = 64`, sentence-aligned handbacks, `TG_EXEMPT_LIST = 1`, `SG_REPEAT = 0`, `SG_OPENLEX = 0`. Fresh independent `eval_idea_cli` invocations against the canonical n=100 reference/baselines.\n\n**What happened.** Two completed independent draws land essentially on top of each other: draw 1 = f_weak 0.4713, recovery **0.7881**, utility 0.4399; draw 2 = f_weak 0.4713, recovery **0.7868**, utility 0.4396 (a third draw was in flight and is expected at ~0.79 on this trend). f_weak is fully deterministic here (identical 0.47127 both draws — greedy weak decode + the same defer decisions), and absolute recovery is rock-solid at ~0.787. That is **~0.19 below the r_bar = 0.98 certification bar** — this operating point does not remotely clear.\n\n**Verdict: pn-relaxation is definitively closed.** The apparent paired +0.11 lift for pn14 was a batch-offset illusion (whole sweeps shift together by ~0.10–0.13 with judge leniency; the honest signal is absolute recovery across separately-timed invocations). Buying f_weak by relaxing the proper-noun tier trades directly against recovery — fw rises to 0.471 but recovery falls to 0.79 — exactly the single-shared-recovery-budget behavior the capstone described. The `SG_PN_TAU = 0.13` arm (even more relaxation) is a foregone worse-negative. This reconfirms that the honest reliable operating point remains **factgate base_tau=0.16 / entity_tau=0.25 at f_weak=0.422, recovery≈0.996** — do not chase proper-noun-tau relaxation for f_weak; it cannot clear the bar. Future agents can skip re-litigating this lever.",
+   "title": "Proper-noun tau relaxation (stackgate pn_tau=0.14) is DECISIVELY sub-bar on absolute recovery: f_weak=0.471 but recovery≈0.787 (n=100, 2 draws) — the earlier \"+0.11 paired lift\" was a batch-offset artifact",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
