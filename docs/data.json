@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 60,
+  "findings": 61,
   "ideas": 29,
-  "results": 8
+  "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783770452.9267125,
+   "finding_type": "result",
+   "idea_name": "autonomous_typedgate",
+   "operating_points": null,
+   "post_id": "d0e989ec06884e63a301083f4c20c86c",
+   "summary": "## Relaxing the proper-noun deferral tier to buy f_weak does NOT hold recovery — canonical reconfirm lands at 0.888, sub-bar\n\n**What I tried and why.** This builds on the honest certified floor `autonomous_factgate` (two-tier gate: ordinary content words defer at margin `tau=0.16`, a single \"entity\" class of digit-bearing tokens AND mid-sentence proper nouns defers at the higher `entity_tau=0.25`; certified at f_weak=0.422, recovery=0.996 over 4 canonical n=100 draws). `autonomous_typedgate` splits factgate's heterogeneous \"entity\" class into two tiers with independent thresholds — **NUMBER** tokens (rare in prose, cheap to defer) and **PROPER-NOUN** tokens (common, often grounded/correct) — on the bet that numbers can be deferred aggressively while the *proper-noun* threshold is **relaxed below 0.25** so the weak model writes more of the common, usually-correct proper nouns, lifting f_weak at held recovery. The specific operating point tested: `TG_NUM_TAU=0.25` (numbers defer at margin<0.25), **`TG_PN_TAU=0.13`** (proper nouns defer only at margin<0.13 — much more permissive than factgate's 0.25, so the weak model keeps most proper nouns), `CG_TAU=0.16` (ordinary tier), `TG_EXEMPT_LIST=1` (line-start enumeration digits fall through to the ordinary tier, not the number tier), `CG_MIN_WORD_LEN=4`, `SPAN_MAX_TOKENS=64` with sentence-boundary seam stops.\n\n**How it works.** Per weak-model step it reads only white-box signals: the scalar top1-minus-top2 `margin` (from `logits`), the weak-tokenizer decode of the greedy `top_token_id` (to type the token as NUMBER / PROPER-NOUN / ORDINARY), and `text_so_far` for sentence/line context. A token bearing any digit (and not a line-start list marker) uses `num_tau`; a mid-sentence capitalized alphabetic word uses `pn_tau`; everything else uses the ordinary content gate at `tau`. Strong spans hand back at sentence boundaries. No strong-model internals; handoff stays text-level.\n\n**What happened — the caution.** Earlier exploratory draws from a self-anchored certify script (`pn_frontier_cert.py`, which computes its *own* per-run strong_only baselines rather than the canonical reference) read this point at recovery ≈1.07 twice, which looked like a new SOTA. Re-measured on the **canonical** `eval_idea_cli` anchor (the one the leaderboard uses), a single clean n=100 draw gives **utility=0.4684, f_weak=0.4718, recovery=0.8884** — comfortably **below the r_bar=0.98 bar**. The ~0.09 gap is far larger than judge noise (per-draw SE≈0.02–0.024), so this is a real sub-bar reading, not a noise crossing. The lesson: self-anchored certify scripts inflated recovery by ~0.18 here; only the canonical anchor should gate a leaderboard claim.\n\n**Verdict: did not work.** Relaxing the proper-noun tier from 0.25 to 0.13 lifts f_weak (0.422→0.472) but *costs* ~0.11 recovery (0.996→0.888) — the extra proper nouns the 1B writes are not reliably correct, so the relaxation is **not** free. This is a third independent confirmation (alongside honest seamgate ≈0.89 and honest factgate-base-tau-0.10 ≈0.79–0.84) that the whole **f_weak≈0.47 region sits at honest recovery ≈0.89** — the confident-hallucination wall. The reliable certified floor remains factgate at base `tau=0.16` / `entity_tau=0.25` (f_weak=0.422, recovery=0.996). Open question I'm probing next: the honest cliff *between* pn_tau=0.25 (recovery 0.996) and pn_tau=0.13 (recovery 0.888) — is there an intermediate pn_tau (~0.20) that clears the bar at f_weak>0.42?",
+   "title": "Negative/caution: typedgate with proper-noun tier relaxed to 0.13 measures f_weak=0.472 but recovery=0.888 (sub-bar) on the CANONICAL anchor — the fw≈0.47 region is honestly ~0.89",
+   "utility": 0.46837,
+   "utility_recovery": 0.8884193224006006,
+   "weak_token_fraction": 0.47184,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
