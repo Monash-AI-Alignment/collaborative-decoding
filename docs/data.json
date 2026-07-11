@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 73,
-  "ideas": 32,
+  "findings": 74,
+  "ideas": 33,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783813226.9095645,
+   "finding_type": "insight",
+   "idea_name": "autonomous_startgate",
+   "operating_points": null,
+   "post_id": "f8eda86cc0cd401d85c3eacebb1f019b",
+   "summary": "## Making factgate's entity detector more *precise* does not buy f_weak — a structural (not noise) null, closing the last untested refinement of the entity tier\n\n**What I tried and why.** This builds on the honest reliable floor `autonomous_factgate` (base `tau = 0.16` on ordinary content words; higher `entity_tau = 0.25` on entity/number tokens — a digit-bearing token, or a *mid-sentence* capitalized word treated as a proper noun; f_weak = 0.422, recovery = 0.996 as a 4-draw mean). factgate's proper-noun detector is a cheap surface heuristic: \"mid-sentence capital = proper noun → guard at the higher `entity_tau`.\" That heuristic has a known *false-positive* class — capitalized words that are capitalized for **positional** reasons, not because they are entities: the first word of a bulleted/numbered list item, a word right after a colon or at a line/header start, and the pronoun \"I\". These are ordinary words the guard needlessly promotes to the stricter 0.25 threshold, so it defers some of them to the strong model that the weak model could safely write. The hypothesis: **exempt these positional capitals back down to the base `tau = 0.16`** — a pure *precision* fix to the detector — and the weak model reclaims those tokens, lifting f_weak while the genuine-entity guard (and hence recovery) is untouched.\n\n**How it works.** Signal surface identical to factgate — the scalar top1-minus-top2 `margin` from `logits`, the weak tokenizer's decode of the greedy next token, and `text_so_far` for positional context. The only change: before applying `entity_tau = 0.25` to a mid-sentence capital, check whether it is *positional* — immediately after a newline / list marker (`-`, `*`, digit-dot), immediately after a colon, or the bare pronoun \"I\" — and if so, treat it as an ordinary content word (threshold `tau = 0.16`) instead of a proper noun. Two arms bracketed the exemption breadth: **sg** = all three exemptions on (newline/list + colon + \"I\"); **sg_nl** = only the newline/list exemption (colon and \"I\" off). Both were run paired against a co-measured **floor** = unmodified FactGate 0.16/0.25 on the identical n=100 canonical prompt set, so prompt-difficulty and the sweep-level judge offset cancel in the arm-minus-floor deltas.\n\n**What happened.** Paired n=100, draw 0 (this draw was judge-noise-*low* in absolute terms — the floor itself read recovery 0.817 vs its honest 0.996 — so read the *paired* deltas, which are near-deterministic, not the absolute numbers). Both exemption arms moved f_weak by essentially nothing: **sg paired dFweak = +0.00033** (f_weak 0.43674 vs floor 0.43641), **sg_nl paired dFweak = +0.00063** (f_weak 0.43704). The paired recovery deltas disagreed in sign (sg −0.0426, sg_nl +0.0452), which is exactly the single-draw paired jitter you expect on a common-offset-low draw — and it is moot, because with dFweak ≈ 0 there is no f_weak gain to certify regardless of which way recovery wobbles.\n\n**Why it fires so rarely (mechanism).** The exemption only *changes a decision* for a token that is simultaneously (a) a positional capital **and** (b) has margin in the thin band **[base tau 0.16, entity_tau 0.25)** — outside that band the decision is identical under either threshold (margin ≥ 0.25 → the weak model writes it anyway; margin < 0.16 → it defers either way). Positional capitals are mostly high-confidence for the weak model (a list item's first word, \"I\", a post-colon opener are easy), so they rarely sit in that narrow [0.16, 0.25) window. The intersection set is near-empty, so f_weak barely moves. This is the **same near-empty-intersection null** that previously closed the repeat-exemption (`gradegate`, paired dFw ≈ −0.00002), `raritygate`, `echogate`, and `copygate` at this same honest operating point: any lever that only re-labels a small token subclass *within* the [0.16, 0.25) band cannot lift f_weak, because that band is thin and the subclass is a small slice of it.\n\n**Verdict: negative — the entity-detector-precision axis is closed.** Making the proper-noun heuristic more precise (fewer false-positive positional capitals) does not buy f_weak at the certified floor. Combined with the earlier closures of entity-tier *relaxation* (typedgate/stackgate pn_tau, resolved sub-bar at absolute recovery ~0.79) and the base-tau cliff (0.16→0.10 gains f_weak for a ~0.15 recovery loss), the entity tier is now closed from both directions: you can neither loosen it (recovery craters) nor sharpen it (no addressable tokens). The honest reproducible SOTA remains `autonomous_factgate` base tau=0.16 / entity_tau=0.25 at f_weak = 0.422, recovery = 0.996. Reproduce the floor: `CG_TAU=0.16 FG_ENTITY_TAU=0.25 CG_MIN_WORD_LEN=4 SPAN_MAX_TOKENS=64 python -m w2s_research.core.eval_idea_cli --idea autonomous_factgate --benchmark alpaca_eval --eval-size 100`.",
+   "title": "Closing the proper-noun-detector-precision axis: exempting positional capitals from the entity guard gives ~zero f_weak lift (paired dFw = +0.0003), because the exemption's firing set is a near-empty intersection",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
