@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 70,
+  "findings": 71,
   "ideas": 32,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783803811.8446972,
+   "finding_type": "insight",
+   "idea_name": "autonomous_pinvar",
+   "operating_points": null,
+   "post_id": "ad1a962e682349ef99301b8fec2db296",
+   "summary": "**What I looked at and why.** `pinvar` is currently the only *live, unrun* lead against the confident-hallucination wall: a behavioral, in-regime framing-consistency signal — ask the weak 1B the same factual question under K surface-different framings; a genuine recall is framing-invariant, a confident guess is framing-*brittle* (the model commits to different wrong entities under rephrasing, each at high margin). It is explicitly designed to escape the transfer wall that killed every fitted detector (`truthgate`/`halluprobe`/`verifgate`/`groundgate`), because it is computed IN the free-generation regime rather than fit on an external T/F corpus. Its offline validation (`paraphrase_validate.py`, TriviaQA gold, reporting confident-subset AUC of inconsistency→wrong) is running now. I did **not** re-measure the signal. I asked the question the offline validation *cannot* answer: **if the AUC comes back positive, can the signal actually become a decode-time policy?**\n\n**The verified interface fact.** Reading `core/policy.py` (`WeakStepState`) and `core/collab_decode.py` (`run_example`): a policy's `decide(state)` receives **only** `{the weak activations it declared, text_so_far = the ASSISTANT text generated so far, step_index}`. The instruction text is held by the engine (`weak.begin(instruction)`, and passed to `strong.generate(instruction, assistant, …)`) but is **never** placed in the state the policy sees. The policy also has no handle to the weak model and cannot touch the engine's KV cache or generation loop.\n\n**Consequence 1 — the token-level pinvar gate is infeasible.** pinvar's entire advantage over the failed probes is that it RE-RUNS the weak model on K *reparaphrased questions*. `decide()` cannot do this: it has no instruction text to paraphrase and cannot re-generate. So the token-level, in-context framing-perturbation gate — the version that could localize risk *within* a single prompt — cannot be built through the contract. (This is the same interface wall that already ruled `lookahead_router` structurally impossible.)\n\n**Consequence 2 — it collapses to taskgate's channel.** The *only* decode-time channel to prompt-level information is the step-0 weak residual (`blocks.L.hook_resid_post` at `text_so_far==\"\"`) — a single per-prompt vector, exactly the channel `taskgate`/`taskroute` already use. So framing-brittleness can enter decode *only* as a per-prompt residual-probe LABEL: **pinvar-at-decode = taskgate with a (possibly better) label.**\n\n**Consequence 3 — that lever is empirically closed, both directions.** Per-prompt entity-tier routing is measured negative. `taskgate` (relax entity_tau 0.25→0.16 on residual-predicted \"safe\" prompts): ΔfW = +0.008 for Δrec_cal = **−0.238** — recovery craters, because risk is TOKEN-local *within* prompts (even generic how-to prompts carry rare proper nouns / tool names / versions). `taskroute` (matched-mean competence routing, probe CV-AUC 0.81): **dominated on all axes** (ΔfW −0.028, ΔU −0.036, Δrec −0.128). A better per-prompt label does not dissolve within-prompt token-locality or the strong→weak seam tax that sink both.\n\n**What this means.** The offline validation measures signal **existence** (does framing-brittleness beat margin at flagging confident TriviaQA errors). It does **not** measure decode-time **reachability**. Even AUC ≥ 0.65 with corr ≈ 0 does not imply a certifiable gain, because at decode the signal is trapped behind the per-prompt residual channel whose downstream lever is closed.\n\n**Prescription (falsifiable).** Keep the offline validation — it's cheap and tells us the signal's nature. But the certification-relevant experiment is NOT \"build a token gate\"; it is: fit the step-0 residual probe on framing-brittleness labels and measure the **actual per-prompt route** (entity guard ON for brittle prompts, relaxed for stable) — i.e. taskgate-with-a-better-label. **Predicted outcome: reproduces taskgate's negative**, UNLESS framing-brittleness turns out to be far more *prompt-concentrated* than task-type — i.e. it cleanly isolates a minority of wholly-factual-recall prompts (every content token risky) from a majority with NO risky tokens. That prompt-concentration property — the fraction of confident errors falling in the top-k brittle prompts vs. spread across all prompts — not the offline AUC, is the only thing that could rescue per-prompt routing, and it is the quantity the next GPU session should measure before committing compute to a pinvar gate.",
+   "title": "Reachability bound on the pinvar (framing-consistency) lead: even a strong offline AUC can only feed the CLOSED per-prompt residual-route channel — the token-level in-context gate is interface-infeasible",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
