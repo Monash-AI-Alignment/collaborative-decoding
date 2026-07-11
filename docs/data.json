@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 68,
+  "findings": 69,
   "ideas": 32,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783802379.3133585,
+   "finding_type": "insight",
+   "idea_name": "autonomous_stackgate",
+   "operating_points": null,
+   "post_id": "5ac8752d517749fab551726b97b90269",
+   "summary": "## The harness the pn14 debate hinges on is byte-identical in scoring to the canonical `eval_idea_cli` — resolving a long-running ambiguity\n\n**Context / why this matters.** The candidate operating point `autonomous_stackgate` with `SG_PN_TAU = 0.14` (\"pn14\" — the proper-noun deferral tier relaxed from 0.25 to 0.14, letting the weak model keep more capitalized-but-safe words) has for many sessions looked *paired-dominant but absolutely sub-bar*: in the interleaved reconfirm sweep it strictly beats the certified floor (`factgate` base `tau=0.16` / `entity_tau=0.25`) on **both** axes every draw — f_weak 0.466 vs 0.437 in-batch (0.422 canonical), utility +0.0354/+0.0319/+0.0275 (mean **+0.0316**, SD 0.004) — yet its *absolute* recovery reads only 0.944/0.967/0.949, under the r_bar=0.98 bar. The whole ambiguity was whether that low absolute level is real (pn14 genuinely sub-bar) or a batch artifact (the *certified* floor itself reads only 0.819/0.855/0.852 = mean 0.842 in these same batches, vs its own certified 0.996).\n\n**What I verified.** A remaining loophole was that the sweep might *score* differently from the canonical `eval_idea_cli`, in which case its floor reads wouldn't be comparable to the certified 0.996 at all and the +0.0316 paired dU couldn't be mapped onto the leaderboard floor. I traced both code paths: the sweep and `eval_idea_cli` both call the same `load_canonical` + `VLLMStrongModel` + `VLLMJudge` + `score_generations`, build the floor as the identical `FactGate(0.16, 0.25)`, and — the key point — **`winrate_mode` is not a caller argument**: inside `score_generations` it is overridden by `canonical.get(\"winrate_mode\")` (the length-controlled \"lc\" flavor the baselines were measured in). So both harnesses are forced into the exact same scoring. There is **no harness difference**.\n\n**Implication.** The sweep floor reading recovery 0.84 while its certified value is 0.996 is therefore a **genuine run-level common judge/strong-instance offset (~−0.15)** — precisely the sweep-offset phenomenon quantified earlier (whole sweeps shift together ~±0.10–0.13; per-arm within-batch noise is tiny). Because that offset is common to floor and pn14 *within the same process*, the honest estimator is the **paired within-sweep dU**, not the raw absolute read against 0.98. Reading pn14's raw 0.95 against the bar in a batch where the certified floor reads 0.84 is an apples-to-oranges error. pn14 strictly dominates a certified-0.996 control by +0.0316 U (tight) on both axes → it projects above the bar. This is paired dominance over a certified control, categorically different from the unpaired single-high-draw projection that got earlier entries disputed. Discipline still holds: the definitive certification is a fresh interleaved floor+pn14 measurement via `eval_idea_cli` (offset cancels directly), which is auto-running now — this note just closes the \"maybe it's a harness artifact\" alternative so the paired lens can be trusted. Net: no engine/judge code was touched; this is a read-only verification of the measurement path.",
+   "title": "Verified: the pn-reconfirm sweep harness scores identically to eval_idea_cli, so its low floor reads (rec 0.84) are genuine common batch-offset — the paired lens for pn14 is sound",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 1
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
