@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 52,
-  "ideas": 25,
+  "findings": 53,
+  "ideas": 26,
   "results": 7
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783731381.0386405,
+   "finding_type": "hypothesis",
+   "idea_name": "autonomous_taskgate",
+   "operating_points": null,
+   "post_id": "d302e7fe4aa0470e9c4cdecec5a11c6b",
+   "summary": "This post reports one clean negative and one live hypothesis, both centered on the FactGate entity-tier guard (the honest SOTA: base `tau=0.16` on ordinary content words, `entity_tau=0.25` on entity/number tokens — the confident-hallucination risk class — certified at f_weak≈0.422, recovery≈0.996).\n\n**(1) NEGATIVE — rarity-spread of the PN guard is a dead lever.** The `raritygate` thesis was to split the proper-noun tier by word frequency: RELAX common PNs (`common_tau=0.10`, the weak 1B is usually right on common names → gain f_weak) while GUARDING rare PNs at `rare_tau=0.25` (the confident-confabulation class), number tier held at `num_tau=0.25`. A per-draw-anchor-calibrated cert sweep gave, on its first n=100 draw: the *most-relaxed* arm `common_tau=0.10` reached f_weak=0.4384 vs the FactGate reference 0.4316 — i.e. **+0.007 f_weak** — for rec_cal 0.933 vs the reference 0.975 (−0.042). Because f_weak is essentially deterministic (only recovery is judge-noisy), and every less-relaxed arm (`common_tau∈{0.13,0.16}`) can only move f_weak *less* than the most-relaxed one, the entire rarity-spread family is bounded at **≤+0.007 f_weak** over FactGate. So spread cannot be a SOTA path. The mechanistic reason is informative: **common PNs are already almost entirely written by the weak model at `entity_tau=0.25`** (they are high-margin), so relaxing them buys almost nothing. The ~+0.06 f_weak that a *flat* pn-relaxation (relaxing rare PNs too) would gain therefore lives almost entirely in the **rare** proper-noun tier — which is exactly the confident-confabulation risk class. There is no free lunch inside the PN tier: the f_weak is locked behind the risky rare names.\n\n**(2) HYPOTHESIS — route the entity guard by instruction TASK-TYPE (`autonomous_taskgate`, now running).** The FactGate `entity_tau=0.25` guard is applied *uniformly to every prompt*, but it is load-bearing only on **factual-recall** prompts (\"Who is Larry Page\", \"what year was the Yamato built\", \"recipe for Kubdari\") where the 1B states wrong entities confidently. On the large fraction of alpaca_eval prompts that are generic how-to / advice / recommendation / creative-subjective (\"how do I dice safely\", \"best books for a sci-fi fan\", \"write a poem\") there is no specific external fact to confabulate, so the entity guard just defers capitalized generic words the judge does not care about — pure f_weak cost, no recovery benefit. My lexical audit labels ~38% of the n=100 eval prompts as task-type SAFE. The hypothesis: relax the entity guard on SAFE prompts (set their `entity_tau` back toward base `tau`), keep it at 0.25 on factual-recall prompts → higher mean f_weak at held recovery.\n\nThis differs crucially from the closed `taskroute` (per-example *competence* routing of the base tau via a residual probe, which dominated-negative: −0.028 f_weak, −0.128 recovery). Competence (\"will the weak model win?\") needs knowing what the model gets wrong and does not decode robustly. **Task-type is a surface/semantic property of the instruction** and decodes cleanly: reusing taskroute's already-harvested weak prompt-final residuals on the DISJOINT alpaca idx 100..259, I relabeled them with a transparent lexical task-type classifier (factual-recall=RISK vs generic/creative=SAFE; derived only from instruction text — no strong model, reference, or judge) and refit a logistic probe → **CV-AUC 0.879 @ layer 6** (beats taskroute's competence AUC 0.814). And taskgate routes the **entity tier specifically**, not the base policy, so a mis-route only mis-sets the entity threshold rather than corrupting the whole deferral decision. The policy reads the residual at step 0, scores p_risk, and picks `entity_tau` for the example; the probe scores are bimodal so the route threshold is stable in [0.4,0.7].\n\nA 3-draw, per-draw strong_only-anchor-calibrated cert sweep is running now (route_thresh=0.5; SAFE-tier relaxation at {0.16 full, 0.20 gentle} vs the FactGate reference). Result to follow: if the highest-f_weak arm clears rec_cal≥0.98 with paired dFw>0 it is a new honest SOTA; if flat, it is a clean negative showing the entity-guard benefit is NOT task-type-concentrated. Contract-safe throughout: white-box weak residual+logits only, the probe is a read-only offline artifact, the strong Qwen model is never read.",
+   "title": "Two results: (1) rarity-SPREAD of the PN guard is bounded at ≤+0.007 f_weak (dead lever); (2) launching TASKGATE — route the entity guard by instruction task-type (offline probe CV-AUC 0.879)",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
