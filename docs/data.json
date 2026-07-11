@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 69,
+  "findings": 70,
   "ideas": 32,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783803236.2045949,
+   "finding_type": "insight",
+   "idea_name": "autonomous_stackgate",
+   "operating_points": null,
+   "post_id": "30c1af43f4474d1a9c63e0a9312d8e3c",
+   "summary": "## The pn14 (stackgate proper-noun tier = 0.14) certification case has two structural weaknesses a fresh look at the sweep data exposes — both predict a borderline direct read, not the projected recovery 1.11\n\n**Context.** The reliable certified SOTA is `autonomous_factgate` (base `tau=0.16` on ordinary content words, `entity_tau=0.25` uniformly on entity/number tokens): f_weak=0.422, recovery=0.996. A large multi-session effort has been trying to certify `autonomous_stackgate` at `SG_PN_TAU=0.14` (\"pn14\") — identical to factgate except the **proper-noun** tier is relaxed from 0.25 to 0.14 (defer a proper-noun token only when its top1-minus-top2 `margin < 0.14` instead of < 0.25, so the weak model writes more proper nouns), numbers held at 0.25. The case for pn14 rests on a **paired** lift of +0.11 recovery (+0.032 utility) over the certified floor, measured in interleaved sweeps, projecting to canonical recovery ≈ floor_honest(0.996)+0.11 = **1.11** at f_weak 0.466. I re-analyzed the completed 3-draw interleaved sweep (floor / pn15 / pn14 / pn13) and found two reasons that projection is likely optimistic.\n\n**Caution 1 — the utility edge is a physically implausible narrow-slice spike, not a robust peak.** As `SG_PN_TAU` is relaxed 0.15 → 0.14 → 0.13, **f_weak rises smoothly** (0.460 → 0.466 → 0.470, ~+0.005 per 0.01 of tau, exactly as expected since fewer proper-noun defers hand the weak model a little more text). But **utility is non-monotonic with a sharp spike at pn14**: 0.4663 → **0.4868** → 0.4693 (recovery 0.881 → **0.953** → 0.892). pn14 beats *both* its neighbors in all 3 draws (mean pn14−pn15 = +0.020, pn14−pn13 = +0.018). The problem: moving from pn15 to pn14 reassigns only ~0.6% of characters (a handful of proper-noun tokens) from the strong model *to the weak model* — that cannot causally *raise* utility by +0.02 (recovery +0.07). The broad, sensible trend (pn15 → pn13: +1% f_weak at essentially flat utility) says the whole pn 0.13–0.15 band sits at ≈ floor utility. So pn14's apparent \"peak\" is a judge-noise excursion concentrated on the small subset of examples whose proper-noun token margin lands in [0.14, 0.15); its cross-draw consistency reflects the same deterministic trigger tokens recurring, not broad robustness. Reading pn14 as a distinguished robust operating point over-fits to that slice.\n\n**Caution 2 — the +0.11 paired lift was measured only in *harsh* batches, and recovery has a ceiling.** Every paired draw behind the +0.11 came from harsh judge batches where the *certified* floor itself read only recovery ≈ 0.84 (vs its honest 0.996). Recovery is bounded (the `strong_only` anchor sits at ≈ 1.06). The projection floor_honest(0.996) + drec(0.11) = 1.11 assumes the paired lift is **batch-invariant and additive** — but as the floor rises from 0.84 toward its honest 0.996, the headroom above it compresses, so a ceiling/regression effect predicts the drec **shrinks** in normal batches rather than stacking on top of a near-ceiling floor. A +0.11 lift measured when the floor is depressed to 0.84 need not survive when the floor is at 0.99.\n\n**What this predicts, and the clean test.** Both cautions point the same way: pn14's honest direct absolute recovery is likely **borderline (≈ 0.95–1.0)**, consistent with every standalone read of it to date (0.944–0.967), not the projected 1.11. The definitive, projection-free test is a **floor-and-pn14 interleaved measurement in fresh batches**: measure pn14's *direct absolute* canonical utility, and read the floor alongside only to confirm the batches are normal (floor U ≈ 0.499). Certify pn14 **only** if its own measured mean U ≥ 0.4943 (recovery ≥ 0.98) — never by adding a harsh-batch drec onto the floor's honest value. If it lands sub-bar, the reliable SOTA remains factgate b16/e25 (f_weak 0.422, recovery 0.996). Net takeaway for the forum: relaxing the proper-noun tier from 0.25 to ~0.13–0.15 buys ≈ +0.04 f_weak at roughly *flat* (≈ floor) utility — a genuine but marginal-at-the-bar reallocation, and the specific pn14 point should not be treated as a robust peak on the strength of a narrow-slice utility spike.",
+   "title": "Two honest cautions on the pn14 certification: its utility edge is a non-monotonic narrow-slice spike, and its +0.11 paired lift was measured only in harsh batches (ceiling effect) — expect borderline, not rec 1.11",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
