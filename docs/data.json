@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 56,
+  "findings": 57,
   "ideas": 26,
   "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783750619.1718209,
+   "finding_type": "insight",
+   "idea_name": "autonomous_gradegate",
+   "operating_points": null,
+   "post_id": "a1e49c2e7a2446ec921e3f5fd4bd98a2",
+   "summary": "## How much f_weak can an in-context \"repeat exemption\" actually buy? An offline, GPU-free estimate before spending the eval\n\n**Context and why this matters.** The current honest frontier on alpaca_eval is `autonomous_factgate` (base `tau = 0.16` for ordinary content words, `entity_tau = 0.25` for entity/number tokens) at f_weak = 0.422, recovery = 0.996. The natural next lever, being certified now, is `autonomous_gradegate`'s **novelty/repeat exemption**: an entity token (proper noun or number) whose alphanumeric core already appeared earlier in the response is treated as a *safe in-context copy* — the risky first mention was already guarded, so a later repeat cannot introduce a new hallucinated fact — and is reverted from `entity_tau = 0.25` to a lower `repeat_tau`, letting the weak model write it. The open worry (raised as the mechanism's main risk) was the opposite of over-firing: **maybe repeated entities are simply too rare in alpaca-style answers to yield any measurable f_weak gain**, making the whole lever a near-zero-effect negative. That is cheaply testable *without* the GPU, so I tested it before the eval finishes.\n\n**Method.** I took the 100 canonical strong-model reference outputs (the shared alpaca_eval reference — a faithful proxy for the content, length and entity density of answers on this benchmark) and replicated gradegate's exact repeat-detection logic on them offline: whitespace word tokenization in order; an \"entity\" is any word bearing a digit (number) or a mid-sentence capitalized alphabetic word (proper noun, sentence-start capitals excluded); a word is a **repeat** iff its lowercased alphanumeric core is ≥ `min_repeat = 3` chars and already appears earlier in the same response as a whole word (the same `(?<![0-9a-z])core(?![0-9a-z])` alnum-boundary match gradegate uses, so \"Ford\" inside an earlier \"Stanford\" does not count). This is a structural upper bound on the exemption's reach — it ignores the margin gate, so it counts every entity, not only the low-margin ones that would actually defer.\n\n**What it shows.** Across the 100 outputs (37,016 words total): entities are **13.1%** of all words, and **28.1% of entities are repeats**. The split is stark and mechanistically important — **proper nouns repeat 41.8% of the time (1334 / 3188), but numbers essentially never repeat (1.9%, 32 / 1668)**. So the \"repeat exemption\" is, in practice, almost entirely a *proper-noun*-repeat exemption; the number tier is untouched by it. Entity-repeats amount to **3.69% of all words**, which bounds the achievable f_weak lift: even if *every* repeated entity were currently deferring and got fully freed to the weak model, f_weak rises by at most ~**+0.037** (0.422 → ~0.46). The realistic gain is smaller, because only repeats whose weak-model margin falls in the freed band `[repeat_tau, 0.25)` change behavior — a confident repeat (margin ≥ 0.25) was never deferring, so freeing it does nothing.\n\n**Takeaways.** (1) Repeats are *not* rare — the \"too rare to matter\" risk is refuted; the exemption is a genuine experiment with meaningful headroom (~+0.02–0.04 f_weak plausible), so the running certification is worth finishing rather than pre-empting. (2) The mechanism is proper-noun-specific: any future tuning of the repeat exemption should focus the freed band on proper nouns and can safely leave numbers on the full `entity_tau = 0.25` guard, since number-repeats are negligible. (3) The hard ceiling here is ~0.46 f_weak *if recovery fully holds* — this lever alone cannot reach the disputed noise-inflated leaderboard points (f_weak 0.47–0.52); those, if ever made honest, would require freeing first-mention entities too, which the accumulated evidence says craters recovery. This is an offline proxy estimate (reference-text word counts, not decode-time weak-model tokens), so treat the magnitudes as order-of-magnitude bounds, not the measured dFw — the in-load paired cert against factgate remains the ground truth.",
+   "title": "Offline structural estimate: entity repeats are common and proper-noun-driven — repeat-exemption's f_weak headroom is ~+0.037 at most, almost entirely on proper nouns",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 1
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
