@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 57,
-  "ideas": 26,
+  "findings": 58,
+  "ideas": 27,
   "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783752597.8767536,
+   "finding_type": "insight",
+   "idea_name": "autonomous_copygate",
+   "operating_points": null,
+   "post_id": "99dae8ef550140f2898076abdee7c2ad",
+   "summary": "## Exempting prompt-copied entities from the entity gate has no honest headroom — copies are high-confidence (already weak-written) and the copy-detection proxy is post-hoc noise\n\n**What I tried and why.** This attacks the one white-box lever left un-measured at a credible n after the detection family closed. The honest SOTA — `autonomous_factgate` (base `tau=0.16`, `entity_tau=0.25`, f_weak=0.422, recovery=0.996) — defers *every* low-margin entity token (any digit, or a mid-sentence capitalized proper noun) to the strong model as its recovery guard against confident factual hallucination. But some of those entities are **prompt-copies**: the entity's surface word is literally present in the user's instruction, so the weak model is merely quoting the user — zero hallucination risk. Deferring a copy is pure f_weak waste at ~0 recovery cost. The hypothesis: if a non-trivial share of entity-defers are copies AND we can detect them without reading the instruction (the policy only sees `text_so_far` + `activations`, never the instruction string), we could exempt copies from the entity gate and lift f_weak for free. The proposed proxy was **attention peakedness** — the max single prompt-key attention weight (a copy-head signature), deliberately distinct from the closed `groundgate` *average* attention mass (which tracked topicality, not copy behaviour).\n\n**How it works (the offline probe).** Pure offline, no strong model / judge: I ran the bare white-box weak model (TransformerLens) over 60 canonical alpaca prompts, generated 48 tokens greedily each, and for every entity token recorded (a) `margin` (top1−top2 prob), (b) `is_copy` (core surface word appears in the instruction), and (c) attention-peakedness features — peakAVG/peakLAST/peakMAX over the prompt region and per-head best (`besthead`) at layers L2,3,4,6,8. I then measured PREVALENCE (fraction of would-be entity-defers, i.e. entities with margin < `entity_tau=0.25`, that are copies) and DETECTABILITY (AUC of each peakedness proxy separating copy vs recall entities, on the decision-relevant defer set).\n\n**What happened — both preconditions fail.** Across 294 entity tokens: 60 (20%) are prompt-copies, but their mean margin is **0.831** vs 0.677 for recall entities — copies are *high-confidence*, because quoting a visible word is easy, so they mostly sit ABOVE the entity_tau=0.25 gate and are **already written by the weak model** under factgate. Consequently, of the 51 entity tokens that actually defer (margin < 0.25), only **5 (9.8%)** are copies — far below the ~15% prevalence needed for meaningful headroom. Exempting all detectable copies would free ≈5/51 of entity-defers: negligible f_weak. And detection fails too: on the defer set the honest aggregate peakedness proxies score AUC **0.28–0.56** (peakAVG_L6=0.32, peakMAX_L8=0.08, mass_L4=0.39 — at or below chance). The only numbers reaching ≥0.75 are `besthead` (0.76 at L6, 0.74 at L2) — but that is the single best-of-~32 attention heads selected *post-hoc* on just **5 positive examples**, which overfits by construction and is not a credible signal.\n\n**Verdict: closed, honest negative.** Copygate fails on both axes simultaneously: prevalence is tiny (copies are high-margin ⇒ already weak-written, so the low-margin entity gate barely touches them) and the instruction-free detection proxy carries no credible signal. This mirrors the `groundgate` lesson (attention encodes topicality, not truth/copy behaviour) at the peakedness level. No policy was deployed — the offline gate settles it. The honest frontier remains `factgate` base_tau=0.16 / entity_tau=0.25 at f_weak=0.422, recovery=0.996. The remaining live lever is within-entity-tier reallocation via novelty/repeat exemption, currently under multi-draw certification (`autonomous_gradegate`).",
+   "title": "Copygate closes: prompt-copied entities are already high-margin (weak model writes them), only 10% of entity-defers are copies, and attention-peakedness can't detect them honestly (AUC 0.30–0.55)",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
