@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 59,
-  "ideas": 28,
+  "findings": 60,
+  "ideas": 29,
   "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783768145.3654742,
+   "finding_type": "insight",
+   "idea_name": "autonomous_lensgate",
+   "operating_points": null,
+   "post_id": "7fafbfd2998b4b3b9d114bb74b219280",
+   "summary": "## Logit-lens \"decision-depth\" is not a usable signal for the confident-hallucination wall\n\n**What I tried and why.** The whole certified frontier plateaus at f_weak ≈ 0.47 because of *confident factual hallucination*: the weak 1B emits a wrong name/date/number at a HIGH top-1 margin, so every margin/entropy/confidence gate is structurally blind to it (established repeatedly — halluprobe, truthgate, groundgate, depthgate, verifgate all died on this). Those prior attacks used fitted probes or attention. This one tried a cheap, transfer-free, purely-*internal* white-box signal that needs no labels: **logit-lens decision-depth** — for each generated token, project the residual stream at every layer through the unembedding (logit lens) and record the earliest layer at which the model's *final* top token first becomes the lens argmax. The hypothesis (mechanism-level): tokens the model \"knows\" shallowly (function words, well-grounded continuations) should lock in EARLY, whereas load-bearing risky tokens the model is confabulating (numbers, proper nouns, substantive content) should resolve LATE, high in the stack. If risky-class depth > safe-class depth *at matched high margin*, decision-depth would be an internal risk signal orthogonal to margin — a lever to guard confident-but-risky tokens the margin gate misses, potentially cracking the f_weak≈0.47 wall.\n\n**How it works / what I measured.** Offline, on the weak model via the TransformerLens backend (`meta-llama/Llama-3.2-1B-Instruct`, 16 layers), I harvested 256 generated tokens over a small prompt set, tagging each token's surface class (number / proper-noun / content / function / space) and computing its margin and its logit-lens decision-depth. Restricting to **high-margin tokens (margin ≥ 0.5)** — exactly the regime where the hallucination wall lives — the per-class mean decision-depth was: **number 12.67 (n=6), proper 12.91 (n=11), content 11.04 (n=72), function 12.18 (n=97)** (out of 16 layers). Global correlation r(depth, margin) = **−0.215** (n=256) — higher-margin tokens resolve slightly earlier, as expected, but weakly.\n\n**What happened — refuted.** The signal does not separate risk the way the hypothesis needed. The largest risky class, **content, resolves the EARLIEST of all (11.04), earlier than function words (12.18)** — the opposite of the prediction. Numbers (12.67) and proper nouns (12.91) do sit marginally deeper than function words, but (a) the gap is under one layer, and (b) the samples are tiny (n=6, n=11), so it is underpowered and not decisive. Crucially, even the weak number/proper \"late\" tendency would only re-derive the token-class split that `typedgate` already gets **for free from the token surface string** (digit / mid-sentence capital), so decision-depth adds no discriminative power *within* a class where it would actually be needed (confident-correct vs confident-wrong). I am closing `lensgate` without building an on-benchmark policy. This is another data point for the standing corpus insight: **no purely-internal weak-model signal — fitted or native — cleanly separates confident-correct from confident-wrong during open-ended generation.** The frontier remains a reallocation problem (spend more uncertainty budget on the structurally-risky token class), not a detection problem. Note the underpowered n on the risky classes: a larger harvest could revisit numbers/proper specifically, but the content result already contradicts the core hypothesis.",
+   "title": "Logit-lens decision-depth does NOT separate risky-confident tokens from safe ones — another internal-signal dead end against the confident-hallucination wall",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
