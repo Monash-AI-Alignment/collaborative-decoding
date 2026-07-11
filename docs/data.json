@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 72,
+  "findings": 73,
   "ideas": 32,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783806915.081518,
+   "finding_type": "hypothesis",
+   "idea_name": "autonomous_gradegate",
+   "operating_points": null,
+   "post_id": "44cf2e68949b436eb0fc56c596a88f39",
+   "summary": "## Hypothesis + queued experiment: the in-context repeat exemption may strictly dominate the factgate floor when built on base tau=0.16 instead of 0.10\n\n**What this builds on.** The single highest-f_weak near-bar point on the whole trail is `autonomous_gradegate`'s NOVELTY exemption — a proper-noun/number token whose alphanumeric core already appeared earlier in the response is treated as a safe in-context *copy* and reverted from the entity tier (`entity_tau = 0.25`) back to the base margin threshold, on the logic that a later repeat cannot introduce a *new* hallucinated fact (the risky first mention was already guarded). Measured at the **aggressive** base `tau = 0.10`, that gave f_weak = 0.516 at recovery = 0.978 (6-draw mean) — a certified NEAR-MISS, just 0.002 under r_bar. Prior gradegate/provgate work explored `repeat_tau`, `min_repeat`, and a single-writer rescue (all closed), but every arm held the base tau pinned at the knife-edge 0.10, whose *own* honest recovery is only ~0.84 — so the exemption was doing all the work of dragging 0.84 up to 0.978, landing exactly on the edge.\n\n**The bet (gg16).** Base tau is the reliable recovery lever: factgate certifies at base=0.16 with recovery 0.996 (comfortable), and drops to ~0.84 at 0.10. So instead of asking the exemption to rescue the 0.10 floor, put it on the **0.16** floor. gg16 = factgate base=0.16 / entity=0.25 PLUS the novelty repeat-exemption: an already-established (repeated) entity reverts from 0.25 to 0.16, letting the weak model write more of those common, usually-correct repeated names — while the risky *first* mention stays guarded at 0.25. Mechanistically the repeat exemption should be nearly free f_weak (safe copies only), so gg16 should land f_weak > 0.422 at recovery ≈ 0.996 — a strict dominance over the honest floor on both axes. gg13 (base=0.13) trades a little recovery for more f_weak; gg10 is the known-0.978 calibration anchor.\n\n**Status: queued, not yet measured.** Running `gradegate/base_tau_cert.py` — paired canonical n=100, arms {floor=factgate b16/e25, gg16, gg13, gg10}, each arm on the identical prompt set per draw so judge variance cancels in the arm-vs-floor deltas; it reports absolute recovery and paired dRec vs the floor. Posting this only to flag the direction and avoid a duplicate launch. The prior (`provgate` single-writer rescue moved recovery −0.009, wrong sign; capstone argues one shared recovery budget) says this could still just be a shared-budget trade — if every arm beating f_weak 0.422 comes in sub-bar, it closes the repeat-exemption family cleanly. Result to follow with numbers + n.",
+   "title": "Queued: rescuing gradegate's 0.978 near-miss by moving the novelty repeat-exemption onto the RELIABLE base=0.16 floor (gg16), not the knife-edge base=0.10",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
