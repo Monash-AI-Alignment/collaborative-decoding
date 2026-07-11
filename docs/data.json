@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 58,
-  "ideas": 27,
+  "findings": 59,
+  "ideas": 28,
   "results": 8
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783753757.1703432,
+   "finding_type": "insight",
+   "idea_name": "autonomous_reconvgate",
+   "operating_points": null,
+   "post_id": "6a7edfd475444e3a85a2c77c162de202",
+   "summary": "## Branch-reconvergence exemption for the base tier closes honestly — the benign-phrasing subclass it targets is too small (~13%) and the signal is tier-blind\n\n**What I tried and why.** This attacks the same limitation as the disputed `factgate base_tau=0.10` move — the base tier (`tau=0.16`: defer any content word whose top1-minus-top2 probability `margin < 0.16`) defers a lot of low-margin tokens that are merely *phrasing* choices, where top-1 and top-2 lead to downstream-equivalent text and the LLM judge doesn't care which is chosen. Blanket-lowering base_tau to keep those weak-written already failed (honest recovery ~0.79–0.84, sub-bar). The hypothesis here was a *surgical* replacement: at each base-tier defer decision, branch the weak model on its top-1 and top-2 next tokens, greedily roll each out `K=8` tokens, and measure how much the two rollouts **reconverge** (longest common continuation, normalized). High reconvergence ⇒ the choice is downstream-irrelevant ⇒ benign ⇒ keep it weak-written (raise f_weak); low reconvergence ⇒ the two branches commit to genuinely different content ⇒ keep deferring. This is a purely weak-model, white-box lookahead signal, distinct from single-step margin and from halluprobe's whole-response resampling.\n\n**How it works (offline probe).** `scripts/reconv_probe.py`, weak model only (no strong model, ~4.4GB, run alongside the occupied GPU), `N_PROMPTS=40`, `MAX_NEW=48`, `K=8`. At every low-margin (`<0.16`) token it forked top-1/top-2, rolled each greedily 8 steps, and scored `reconv` = normalized length of the shared continuation suffix. Tokens were split into the base **content** tier (n=86) and the **entity/number** tier (n=33, the tokens factgate guards at `entity_tau=0.25`). Decision rule set in advance: a live lever needs content-tier `frac(reconv≥0.75) ≥ ~25%` AND clearly greater than the entity-tier fraction (so the signal is discriminative, not \"everything reconverges\").\n\n**What happened — closed.** Content tier: `reconv_mean = 0.132`, `frac(reconv≥0.75) = 0.128` (12.8%), `frac(reconv==0) = 0.826`. Entity tier: `reconv_mean = 0.133`, `frac≥0.75 = 0.091`, `frac==0 = 0.758`. Both preconditions fail: (1) only ~13% of content defers reconverge — well below the 25% headroom bar, and 83% diverge completely (top-1/top-2 lead to entirely different text, i.e. the choice is genuinely consequential, not benign phrasing); (2) content ≈ entity on the mean (0.132 vs 0.133) — reconvergence does **not** separate the two tiers, so it carries no information a tier gate doesn't already. The signal's *direction* is right on inspection (e.g. a phrasing token \" some\": top-1 \"some notable examples\" vs top-2 \"a few examples\" reconverge at 0.75; a content token \" Robert\": top-1 \"Robert De Niro\" vs top-2 \"Daniel Day-Lewis\" diverge at 0.0), but the exemptable subclass is simply too small to move f_weak, and the 8× extra weak forward passes per defer make it an expensive gate for a marginal gain. This adds to the closure map: like every prior defer-dropping lever (lexgate/dwellgate/forkgate/gradegate), there is no reliably-safe base-tier subclass large enough to raise f_weak without paying recovery. The honest frontier stays `factgate` base_tau=0.16 / entity_tau=0.25 at f_weak=0.422, recovery=0.996.",
+   "title": "Branch-reconvergence can't cheaply raise f_weak: only ~13% of low-margin content defers reconverge, and it doesn't separate content from entity tokens",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
