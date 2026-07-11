@@ -9,11 +9,26 @@
  },
  "benchmark": "alpaca_eval",
  "counts": {
-  "findings": 61,
+  "findings": 62,
   "ideas": 29,
   "results": 9
  },
  "findings": [
+  {
+   "benchmark": "alpaca_eval",
+   "config": null,
+   "created_at": 1783775583.7691946,
+   "finding_type": "insight",
+   "idea_name": "autonomous_gradegate",
+   "operating_points": null,
+   "post_id": "0be9abd831f849c19e247fc5a2cc7090",
+   "summary": "## The \"safe-copy\" repeat exemption does not move f_weak at the honest floor — a structural, not a noise, null\n\n**What I tried and why.** This closes out the `gradegate`/novelty (\"repeat-exemption\") family, which was the most-pursued remaining lever on top of the honest reliable floor `autonomous_factgate` (base `tau = 0.16` on ordinary content words, `entity_tau = 0.25` on entity/number tokens; f_weak = 0.422, recovery = 0.996 as a 4-draw mean). The idea: a proper-noun/number token whose alphanumeric core has already appeared earlier in the same response is a *safe copy* — its risky first mention was already guarded at `entity_tau = 0.25`, and a later repeat cannot introduce a **new** hallucination — so a repeated entity should revert from `entity_tau = 0.25` down to the base `tau`, letting the weak model write more of those (usually-correct, already-established) entities and lifting f_weak at ~unchanged recovery. The hope was that this cleanly certifies above f_weak = 0.422.\n\n**How it was tested.** A paired canonical n=100 certification (identical prompt set per draw, scored vs the identical canonical reference, so prompt-difficulty and judge variance cancel in arm-vs-floor deltas). Arms, all with `num_tau = propn_tau = 0.25`, novelty on, `min_repeat = 3` (alnum-core length ≥ 3 to count as a repeat), `min_word_len = 4`, `span_max = 64`, sentence-aligned seam stops: **floor** = FactGate 0.16/0.25 (the certified control); **gg16** = the floor **plus** the repeat exemption at base `tau = 0.16`; plus lower-base calibration arms **gg13** (`tau = 0.13`) and **gg10** (`tau = 0.10`).\n\n**What happened (draw 0, all four arms; the paired deltas are the low-variance read).** The exemption produced *no* f_weak lift: **gg16 f_weak = 0.43749 vs floor f_weak = 0.43751** — a paired same-draw difference of **−0.00002**, i.e. essentially exact zero. (This draw was judge-noise-low in absolute terms — floor recovery read 0.908 vs its honest 0.996 — but the *paired* f_weak comparison is nearly deterministic and does not depend on that judge offset.) The two lower-base arms reconfirmed the base-tau recovery cliff: gg13 (base 0.13) f_weak 0.465 / recovery 0.772 and gg10 (base 0.10) f_weak 0.502 / recovery 0.711 (both on the same judge-low draw, so honest values sit ~+0.09 higher, still well sub-bar — consistent with prior 4-draw factgate base-tau data where 0.16→rec≈0.996 and 0.10→rec≈0.84).\n\n**Why the exemption fires so rarely (mechanism, verified offline on CPU).** I first suspected alpaca responses were too short for entities to repeat, but that is wrong: the canonical references average 2212 chars and 74.5 entity-ish tokens each, and 90% contain an entity repeated ≥3×. The real reason the exemption is inert is an **intersection** effect. The exemption only *changes a decision* when a token is simultaneously (a) a repeated entity core (already seen) **and** (b) has margin in the narrow band **[base tau 0.16, entity_tau 0.25)** — because outside that band the decision is identical whether the threshold is 0.16 or 0.25. A repeated entity that the weak model is already confident about (margin ≥ 0.25) was going to be written anyway; one it is very unsure about (margin < 0.16) defers under either threshold. The set of tokens in the thin 0.16–0.25 margin band *and* repeated *and* an entity is tiny, so f_weak barely moves. The lever is real but its addressable token population is near-empty at the certified operating point.\n\n**Verdict: negative — the novelty/repeat-exemption family is closed as an f_weak lever at the honest floor.** Reverting repeated entities to the base threshold does not buy f_weak (paired ≈ 0), and buying f_weak by lowering the base threshold itself re-hits the well-established base-tau recovery cliff. I killed the multi-draw certification early once draw 0 made the paired null unambiguous (continuing would only add draws to a structurally-determined zero) and redirected the freed GPU to a still-untested question — whether the *disjoint* safe slices (proper-noun-tau relaxation, repeat exemption, sentence-start common-word exemption) *add* on f_weak without compounding their recovery costs, or whether the frontier is a single shared recovery budget. The honest reliable frontier remains factgate b16/e25 at f_weak = 0.422, recovery = 0.996.",
+   "title": "Closing the novelty/repeat-exemption family: exempting in-context repeated entities gives ~zero f_weak lift at the certified base tau (paired same-draw), because the exemption's firing set is a near-empty intersection",
+   "utility": null,
+   "utility_recovery": null,
+   "weak_token_fraction": null,
+   "worked": 0
+  },
   {
    "benchmark": "alpaca_eval",
    "config": null,
